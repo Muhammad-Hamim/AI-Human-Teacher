@@ -1,20 +1,24 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useMemo } from "react";
 import { motion } from "framer-motion";
 import { Avatar } from "@/components/ui/avatar";
-import { Message } from "@/redux/features/chat/chatSlice";
+import { useParams } from "react-router";
+import { useAppSelector } from "@/redux/hooks";
 
-interface ChatMessagesProps {
-  messages: Message[];
-}
-
-export default function ChatMessages({ messages }: ChatMessagesProps) {
+const ChatMessages = () => {
+  const messages = useAppSelector((state) => state.chat.messages);
+  const { chatId } = useParams<{ chatId: string }>();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Memoize filtered messages based on chatId and messages
+  const filteredMessages = useMemo(() => {
+    return chatId ? messages.filter((message) => message.chatId === chatId) : [];
+  }, [chatId, messages]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [filteredMessages]);
 
-  if (messages.length === 0) {
+  if (filteredMessages.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-center p-4">
         <h1 className="text-2xl font-bold mb-2">AI Human Teacher</h1>
@@ -28,7 +32,7 @@ export default function ChatMessages({ messages }: ChatMessagesProps) {
 
   return (
     <div className="space-y-6 pb-4">
-      {messages.map((message, index) => (
+      {filteredMessages.map((message, index) => (
         <motion.div
           key={index}
           initial={{ opacity: 0, y: 10 }}
@@ -70,4 +74,6 @@ export default function ChatMessages({ messages }: ChatMessagesProps) {
       <div ref={messagesEndRef} />
     </div>
   );
-}
+};
+
+export default ChatMessages;

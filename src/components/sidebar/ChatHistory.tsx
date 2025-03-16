@@ -1,13 +1,4 @@
-import {
-  Folder,
-  Forward,
-  Frame,
-  Map,
-  MoreHorizontal,
-  PieChart,
-  Plus,
-  Trash2,
-} from "lucide-react";
+import { Folder, Forward, MoreHorizontal, Trash2 } from "lucide-react";
 
 import {
   DropdownMenu,
@@ -24,50 +15,33 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { useAppSelector } from "@/redux/hooks";
+import { RootState } from "@/redux/store";
+import { NavLink } from "react-router";
 
 export function ChatHistory() {
-  const projects = [
-    {
-      name: "Design Engineering",
-      url: "#",
-      icon: Frame,
-    },
-    {
-      name: "Sales & Marketing",
-      url: "#",
-      icon: PieChart,
-    },
-    {
-      name: "Travel",
-      url: "#",
-      icon: Map,
-    },
-  ];
+  const chatHistory = useAppSelector(
+    (state: RootState) => state.chatHistory.history
+  );
+  console.log(chatHistory);
   const { isMobile } = useSidebar();
 
   return (
     <SidebarGroup className="group-data-[collapsible=icon]:hidden p-0 border-l-2 border-gray-800">
-      <div className="sticky top-0 bg-gray-900 text-white p-2  z-10 flex justify-between items-center py-2">
+      <div className="sticky top-0 bg-gray-900 text-white p-2  z-10 py-2">
         <span>Chat History</span>
-        <button className="cursor-pointer">
-          <Plus />
-        </button>
       </div>
       <SidebarMenu className="p-2">
-        {projects.map((item) => (
-          <SidebarMenuItem key={item.name}>
+        {chatHistory.map((history) => (
+          <SidebarMenuItem key={history.id}>
             <SidebarMenuButton asChild>
-              <button className="cursor-pointer">
-                <item.icon />
-                <span>{item.name}</span>
-              </button>
+              <NavLink to={`/${history.id}`} className="cursor-pointer">
+                <span>{history.title}</span>
+              </NavLink>
             </SidebarMenuButton>
             <DropdownMenu>
               <DropdownMenuTrigger asChild className="cursor-pointer">
-                <SidebarMenuAction
-                  showOnHover
-                  className=" hover:text-white"
-                >
+                <SidebarMenuAction showOnHover className=" hover:text-white">
                   <MoreHorizontal className="text-slate-400" />
                   <span className="sr-only">More</span>
                 </SidebarMenuAction>

@@ -1,10 +1,12 @@
 import { configureStore } from "@reduxjs/toolkit";
 import aiResponseReducer from "./features/aiResponse/aiResponseSlice";
-import chatReducer from './features/chat/chatSlice'
+import chatReducer from "./features/chat/chatSlice";
+import chatHistoryReducer from "./features/chatHistory/chatHistorySlice";
 export const store = configureStore({
   reducer: {
     aiResponse: aiResponseReducer,
     chat: chatReducer,
+    chatHistory: chatHistoryReducer,
   },
 });
 

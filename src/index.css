@@ -122,7 +122,6 @@
   }
 }
 
-
 @layer base {
   :root {
     --background: 0 0% 100%;
@@ -196,18 +195,11 @@
   }
 }
 
-
-
-
-
-
-
-
-
-
-
-
 /* Custom scrollbar styles */
 .custom-scrollbar::-webkit-scrollbar {
   width: 1px;
+}
+.message-scrollbar::-webkit-scrollbar {
+  width: 4px;
+  background-color: aliceblue;
 }

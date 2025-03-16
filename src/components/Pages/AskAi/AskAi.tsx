@@ -4,25 +4,26 @@ import type React from "react";
 
 import { useState, useRef, useEffect } from "react";
 import { useForm } from "react-hook-form";
-import { useDispatch, useSelector } from "react-redux";
 import { Mic, Search, Plus, BrainCircuit, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
-import { RootState } from "@/redux/store";
 import { addMessage } from "@/redux/features/chat/chatSlice";
 import ChatMessages from "./chatMessages";
+import { useNavigate, useParams } from "react-router";
+import { useAppDispatch } from "@/redux/hooks";
+import { addChatHistory } from "@/redux/features/chatHistory/chatHistorySlice";
 
 type FormInputs = {
   message: string;
 };
 const AskAi = () => {
+  const { chatId } = useParams<{ chatId: string }>(); // grab chat id from the route – it'll be undefined initially
+
   const [isListening, setIsListening] = useState(false);
   const [rows, setRows] = useState(1);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const dispatch = useDispatch();
-  const messages = useSelector((state: RootState) => state.chat.messages);
-
+  const dispatch = useAppDispatch();
   const { register, handleSubmit, reset, watch, setValue } =
     useForm<FormInputs>({
       defaultValues: {
@@ -30,6 +31,7 @@ const AskAi = () => {
       },
     });
   const messageValue = watch("message", "");
+  const navigate = useNavigate();
 
   // Auto-resize textarea
   useEffect(() => {
@@ -50,7 +52,45 @@ const AskAi = () => {
 
   const onSubmit = (data: FormInputs) => {
     if (data.message && data.message.trim()) {
-      dispatch(addMessage({ role: "user", content: data.message.trim() }));
+      const messageContent = data.message.trim();
+      let newChatId = "";
+      // If there is no chat ID (i.e. first message), generate one and navigate to that route.
+      if (!chatId) {
+        newChatId = crypto.randomUUID();
+        // First dispatch the chat history action
+        dispatch(
+          addChatHistory({
+            id: newChatId,
+            userId: "ai-1234",
+            user: "new ai",
+            title: messageContent,
+            lastMessage: messageContent,
+            lastMessageAt: new Date(),
+            isDeleted: false,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          })
+        );
+      } else {
+        // Otherwise, we're already in a chat so use the existing chat ID
+        newChatId = chatId;
+      }
+
+      // Then dispatch the message action
+      dispatch(
+        addMessage({
+          chatId: newChatId,
+          role: "user",
+          content: messageContent,
+          timestamp: new Date(),
+        })
+      );
+
+      // Finally, navigate to the new chat route (only if it's a new chat)
+      if (!chatId) {
+        navigate(`/${newChatId}`);
+      }
+
       reset({ message: "" });
       setRows(1);
       if (textareaRef.current) {
@@ -66,15 +106,20 @@ const AskAi = () => {
     }
   };
 
+  //create a new chat
+  const handleNewChat = () => {
+    navigate("/");
+  };
+
   const startListening = () => {
     if ("webkitSpeechRecognition" in window) {
       const recognition = new (window as any).webkitSpeechRecognition();
       recognition.continuous = false;
       recognition.interimResults = false;
 
-      // Support for Chinese language
+      // Support for Chinese language (uncomment if needed)
       // recognition.lang = "zh-CN"; // Set to Chinese (Simplified)
-      recognition.lang = "en";
+      recognition.lang = "en-US"; // Set to English
 
       recognition.onstart = () => {
         setIsListening(true);
@@ -86,12 +131,7 @@ const AskAi = () => {
         setValue("message", transcript);
         setTimeout(() => {
           if (transcript.trim()) {
-            dispatch(addMessage({ role: "user", content: transcript.trim() }));
-            reset({ message: "" });
-            setRows(1);
-            if (textareaRef.current) {
-              textareaRef.current.style.height = "auto";
-            }
+            handleSubmit(onSubmit)();
           }
         }, 500);
       };
@@ -113,8 +153,8 @@ const AskAi = () => {
 
   return (
     <main className="flex flex-col h-[calc(100vh-100px)] w-[70%] mx-auto bg-background">
-      <div className="flex-1 overflow-y-auto p-4 pb-0">
-        <ChatMessages messages={messages} />
+      <div className="flex-1 overflow-y-auto message-scrollbar p-4 pb-0">
+        <ChatMessages />
       </div>
       <Card className="border-t mx-4 my-4 p-2">
         <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col">
@@ -147,6 +187,7 @@ const AskAi = () => {
                 type="button"
                 variant="ghost"
                 size="icon"
+                onClick={handleNewChat}
                 className="h-8 w-8 rounded-full"
               >
                 <Plus className="h-4 w-4" />
