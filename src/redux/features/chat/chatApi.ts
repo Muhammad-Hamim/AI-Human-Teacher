@@ -4,6 +4,7 @@ import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 export const chatApi = createApi({
   reducerPath: "chatApi",
   baseQuery: fetchBaseQuery({ baseUrl: "http://localhost:5000/api/v1" }),
+  tagTypes: ["Messages"],
   endpoints: (builder) => ({
     requestAiResponse: builder.mutation<
       TMessage,
@@ -35,9 +36,15 @@ export const chatApi = createApi({
           },
         };
       },
+      invalidatesTags: (result, error, { chatId }) => [
+        { type: "Messages", id: chatId },
+      ],
     }),
     getMessages: builder.query<{ data: TMessage[] }, string>({
       query: (chatId: string) => `/messages/chat/${chatId}`,
+      providesTags: (result, error, chatId) => [
+        { type: "Messages", id: chatId },
+      ],
     }),
   }),
 });

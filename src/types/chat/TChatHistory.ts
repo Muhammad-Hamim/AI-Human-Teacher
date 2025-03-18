@@ -8,3 +8,5 @@ export type TChatHistory = {
   createdAt: Date;
   updatedAt: Date;
 };
+
+export const FUserId = "641e23bc79b28a2f9c8d4567";

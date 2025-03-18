@@ -18,8 +18,15 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from "@/components/ui/tooltip";
-import { useCreateChatMutation } from "@/redux/features/chatHistory/chatHistoryApi";
-import { useRequestAiResponseMutation } from "@/redux/features/chat/chatApi";
+import {
+  useCreateChatMutation,
+  useGetChatHistoryQuery,
+} from "@/redux/features/chatHistory/chatHistoryApi";
+import {
+  useGetMessagesQuery,
+  useRequestAiResponseMutation,
+} from "@/redux/features/chat/chatApi";
+import { FUserId } from "@/types/chat/TChatHistory";
 
 type FormInputs = {
   message: string;
@@ -34,6 +41,9 @@ const AskAi = () => {
   const dispatch = useAppDispatch();
   const [createChat] = useCreateChatMutation();
   const [requestAiResponse] = useRequestAiResponseMutation();
+  const { refetch: refetchMessages } = useGetMessagesQuery(chatId || "");
+  const { refetch: refetchChatHistory } = useGetChatHistoryQuery(FUserId);
+
   const { register, handleSubmit, reset, watch, setValue } =
     useForm<FormInputs>({
       defaultValues: {
@@ -72,21 +82,24 @@ const AskAi = () => {
         if (!currentChatId) {
           // Add chat to the database
           const response = await createChat(messageContent);
-          console.log(response, chatId, 'create chat')
+          console.log(response, chatId, "create chat");
           if (response.data) {
             currentChatId = response.data.data._id;
             // Navigate to new chat
             navigate(`/${currentChatId && currentChatId}`);
+            // Refetch chat history after creation
+            await refetchChatHistory();
           }
         }
 
         // Dispatch the user message to the store
         if (currentChatId) {
-          // Request AI response
           await requestAiResponse({
             prompt: data.message,
             chatId: currentChatId,
-          });
+          }).unwrap();
+          // Refetch messages after AI response
+          refetchMessages();
         }
         // Reset the form
         reset({ message: "" });
@@ -123,7 +136,9 @@ const AskAi = () => {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    console.log(e.key);
     if (e.key === "Enter" && !e.shiftKey) {
+      console.log("click inside handle key down");
       e.preventDefault();
       handleSubmit(onSubmit)();
     }
@@ -172,7 +187,7 @@ const AskAi = () => {
   return (
     <main className="flex flex-col h-[calc(100vh-100px)] w-[70%] mx-auto bg-gray-900 rounded-xl border border-gray-800">
       {/* Messages area with a subtle gradient background */}
-      <div className="flex-1 overflow-y-auto message-scrollbar p-6 pb-0 bg-gray-900">
+      <div className="flex-1 overflow-y-auto message-scrollbar p-6 pb-4 bg-gray-900">
         <ChatMessages />
         {isThinking && (
           <div className="flex justify-center my-4">
