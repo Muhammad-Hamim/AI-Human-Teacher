@@ -1,6 +1,8 @@
 export type TPrompt = {
-  userId: string;
-  user: string;
-  chatId: string;
-  content: string;
+  userId?: string;
+  user?: string;
+  chatId?: string;
+  content?: string;
+  text?: string;
+  error?: string;
 };

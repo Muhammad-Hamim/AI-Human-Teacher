@@ -9,15 +9,17 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { addMessage } from "@/redux/features/chat/chatSlice";
+
 import ChatMessages from "./chatMessages";
 import { useNavigate, useParams } from "react-router";
 import { useAppDispatch } from "@/redux/hooks";
-import { addChatHistory } from "@/redux/features/chatHistory/chatHistorySlice";
 import {
   Tooltip,
   TooltipTrigger,
   TooltipContent,
 } from "@/components/ui/tooltip";
+import { useCreateChatMutation } from "@/redux/features/chatHistory/chatHistoryApi";
+import { useRequestAiResponseMutation } from "@/redux/features/chat/chatApi";
 
 type FormInputs = {
   message: string;
@@ -30,6 +32,8 @@ const AskAi = () => {
   const [isThinking, setIsThinking] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const dispatch = useAppDispatch();
+  const [createChat] = useCreateChatMutation();
+  const [requestAiResponse] = useRequestAiResponseMutation();
   const { register, handleSubmit, reset, watch, setValue } =
     useForm<FormInputs>({
       defaultValues: {
@@ -52,60 +56,69 @@ const AskAi = () => {
     }
   }, [messageValue]);
 
-  const onSubmit = (data: FormInputs) => {
+  const onSubmit = async (data: FormInputs) => {
     if (data.message && data.message.trim()) {
       const messageContent = data.message.trim();
-      let newChatId = "";
+      let currentChatId = chatId;
 
-      // Simulate AI thinking
+      // Set thinking state
       setIsThinking(true);
+      /**
+       * 1. when user'll submit any message/prompt, first it should check where there is a chatId or not. if not first create a chat and use that chatId to store the message for getting response.
+       * after request for response using requestAiResponse, it should refetch messages useGetMessagesQuery to show on the ui.
+       *
+       */
+      try {
+        if (!currentChatId) {
+          // Add chat to the database
+          const response = await createChat(messageContent);
+          console.log(response, chatId, 'create chat')
+          if (response.data) {
+            currentChatId = response.data.data._id;
+            // Navigate to new chat
+            navigate(`/${currentChatId && currentChatId}`);
+          }
+        }
 
-      // If there is no chat ID (i.e. first message), generate one and navigate to that route
-      if (!chatId) {
-        newChatId = crypto.randomUUID();
+        // Dispatch the user message to the store
+        if (currentChatId) {
+          // Request AI response
+          await requestAiResponse({
+            prompt: data.message,
+            chatId: currentChatId,
+          });
+        }
+        // Reset the form
+        reset({ message: "" });
+        setRows(1);
+        if (textareaRef.current) {
+          textareaRef.current.style.height = "auto";
+        }
+
+        console.log("Sending request to AI API:", messageContent);
+        // Add the AI response to the chat
+      } catch (error: any) {
+        console.error("Error requesting AI response:", error);
+
+        // Extract the error message
+        let errorMessage = "An error occurred while generating the response.";
+        if (error.data?.message?.includes("DeepSeek API Error")) {
+          errorMessage =
+            "The AI service is currently experiencing issues. This might be due to configuration or service availability. Please try again later.";
+        }
+
+        // Add error message to chat
         dispatch(
-          addChatHistory({
-            id: newChatId,
-            userId: "ai-1234",
-            user: "new ai",
-            title: messageContent,
-            lastMessage: messageContent,
-            lastMessageAt: new Date(),
-            isDeleted: false,
-            createdAt: new Date(),
-            updatedAt: new Date(),
+          addMessage({
+            chatId: currentChatId as string,
+            role: "assistant",
+            content: errorMessage,
           })
         );
-      } else {
-        newChatId = chatId;
-      }
-
-      // Dispatch the message action
-      dispatch(
-        addMessage({
-          chatId: newChatId,
-          role: "user",
-          content: messageContent,
-          timestamp: new Date(),
-        })
-      );
-
-      // Navigate to the new chat route (only if it's a new chat)
-      if (!chatId) {
-        navigate(`/${newChatId}`);
-      }
-
-      reset({ message: "" });
-      setRows(1);
-      if (textareaRef.current) {
-        textareaRef.current.style.height = "auto";
-      }
-
-      // Simulate AI response delay and stop thinking
-      setTimeout(() => {
-        // Here you would normally wait for the actual AI response
+      } finally {
+        // Stop thinking state
         setIsThinking(false);
-      }, 2000);
+      }
     }
   };
 
@@ -193,6 +206,7 @@ const AskAi = () => {
               type="submit"
               size="icon"
               className="absolute right-2 bottom-2 h-9 w-9 rounded-full bg-indigo-500 hover:bg-indigo-600 shadow-md transition-all duration-200 hover:scale-105"
+              disabled={isThinking}
             >
               <Send className="h-4 w-4" />
             </Button>
@@ -208,6 +222,7 @@ const AskAi = () => {
                     size="icon"
                     onClick={handleNewChat}
                     className="h-8 w-8 rounded-full hover:bg-gray-700 text-gray-300"
+                    disabled={isThinking}
                   >
                     <Plus className="h-4 w-4" />
                   </Button>
@@ -222,6 +237,7 @@ const AskAi = () => {
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 rounded-full hover:bg-gray-700 text-gray-300"
+                    disabled={isThinking}
                   >
                     <Search className="h-4 w-4" />
                   </Button>
@@ -238,6 +254,7 @@ const AskAi = () => {
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 rounded-full hover:bg-gray-700 text-gray-300"
+                    disabled={isThinking}
                   >
                     <BrainCircuit className="h-4 w-4" />
                   </Button>
@@ -257,6 +274,7 @@ const AskAi = () => {
                         : "hover:bg-gray-700 text-gray-300"
                     }`}
                     onClick={startListening}
+                    disabled={isThinking}
                   >
                     <Mic className="h-4 w-4" />
                   </Button>

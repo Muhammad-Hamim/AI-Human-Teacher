@@ -1,0 +1,23 @@
+
+export type TUser = {
+  senderType: string;
+  senderId: string | null;
+};
+
+export type TContent = {
+  contentType: string;
+  content: string;
+};
+
+export type TMessage = {
+  _id?: string;
+  userId: string;
+  user: TUser;
+  chatId: string;
+  message: TContent;
+  isAIResponse: boolean;
+  replyToMessageId?: string;
+  isDeleted: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
+};
