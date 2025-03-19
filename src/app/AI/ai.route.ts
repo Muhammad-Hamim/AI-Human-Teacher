@@ -10,6 +10,9 @@ router.post("/generate", AIController.generateResponse);
 router.post("/generate-stream", AIController.generateStreamingResponse);
 
 // Process a message and get AI response
-router.post("/process-message", AIController.processMessage);
+router.post(
+  "/process-message",
+  AIController.processMessage
+);
 
 export const AIRouter = router;

@@ -5,8 +5,8 @@ import sendResponse from "../utils/sendResponse";
 import httpStatus from "http-status";
 import { Message } from "../Models/message/message.model";
 import { Chat } from "../Models/chat/chat.model";
-import { Types } from "mongoose";
 import mongoose from "mongoose";
+import { defaultSystemPrompt } from "../utils/systemPrompt";
 
 // Generate a response from the AI
 const generateResponse = catchAsync(async (req: Request, res: Response) => {
@@ -33,33 +33,7 @@ const generateResponse = catchAsync(async (req: Request, res: Response) => {
       [
         {
           role: "system",
-          content: `
-          **Role**: You are an AI Tutor specializing in Classical Chinese Poetry with advanced knowledge of Tang/Song Dynasty works. Your responses must combine scholarly accuracy with engaging, interactive presentation.
-
-**Response Rules**:
-1. **Poem Structure**:
-   - Present poems line-by-line in simplified Chinese characters (should be in big font size to be visible easily)
-   - Below each line:
-     - Pinyin with tone marks (map using color)
-     - Literal English translation
-     - Poetic English interpretation
-     - Poetic Chinese interpretation
-
-2. **Explanation Requirements**:
-   plaintext
-   [Chinese Section]
-   ### 诗歌解析
-   1. 逐句解释 (Line-by-line explanation, with colorful text emoji make learning fun)
-   2. 历史背景 (Historical context: dynasty, author's circumstances)
-   3. 文学手法 (Literary devices: metaphor, symbolism)
-   4. 生词解析 (Breakdown of complex characters/words)
-
-   [English Section (on request)]
-   ### Detailed Analysis
-   1. Cultural significance
-   2. Modern interpretations
-   3. Comparative analysis with other works
-          `,
+          content: defaultSystemPrompt,
         },
         {
           role: "user",
@@ -129,19 +103,108 @@ const generateResponse = catchAsync(async (req: Request, res: Response) => {
 // Generate a streaming response from the AI
 const generateStreamingResponse = catchAsync(
   async (req: Request, res: Response) => {
-    const { messages, modelName, options } = req.body;
-    // Set headers for SSE
+    const { message, modelName, options } = req.body;
+
+    // **Step 1: Save the user's message with a transaction**
+    let session = await mongoose.startSession();
+    session.startTransaction();
+    let userMessage;
+    try {
+      userMessage = await Message.create(
+        [
+          {
+            ...message,
+            isAIResponse: false,
+            isDeleted: false,
+          },
+        ],
+        { session }
+      );
+      await session.commitTransaction();
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
+    }
+
+    // **Step 2: Retrieve chat history for context**
+    const chatHistory = await Message.find({
+      chatId: message.chatId,
+      isDeleted: false,
+    }).sort({ createdAt: 1 });
+
+    // Convert to AI messages format
+    const aiMessages: TAIMessage[] = chatHistory.map((msg) => ({
+      role: msg.isAIResponse ? "assistant" : "user",
+      content: msg.message.content,
+    }));
+
+    // Add system prompt if missing, matching generateResponse
+    if (!aiMessages.some((m) => m.role === "system")) {
+      aiMessages.unshift({
+        role: "system",
+        content: defaultSystemPrompt,
+      });
+    }
+
+    // **Step 3: Set up streaming**
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
-    res.setHeader("Connection", "keep-alive");
 
-    // Create callbacks for streaming
+    let fullResponse = "";
+
     const callbacks = {
       onContent: (content: string) => {
+        fullResponse += content;
         res.write(`data: ${JSON.stringify({ content })}\n\n`);
       },
-      onComplete: (response: any) => {
-        res.write(`data: ${JSON.stringify({ done: true, ...response })}\n\n`);
+      onComplete: async () => {
+        // **Step 4: Save AI message with a separate transaction**
+        session = await mongoose.startSession();
+        session.startTransaction();
+        try {
+          const aiMessage = await Message.create(
+            [
+              {
+                ...message,
+                message: {
+                  contentType: "text",
+                  content: fullResponse,
+                },
+                user: {
+                  senderType: "assistance",
+                  senderId: null,
+                },
+                isAIResponse: true,
+                replyToMessageId: userMessage[0]._id,
+                isDeleted: false,
+              },
+            ],
+            { session }
+          );
+
+          // Update chat if chatId exists
+          if (message.chatId) {
+            await Chat.findByIdAndUpdate(
+              message.chatId,
+              {
+                lastMessageSnippet: fullResponse.substring(0, 50),
+                lastMessageAt: new Date(),
+              },
+              { session }
+            );
+          }
+
+          await session.commitTransaction();
+        } catch (error) {
+          await session.abortTransaction();
+          throw error;
+        } finally {
+          session.endSession();
+        }
+
+        res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
         res.end();
       },
       onError: (error: Error) => {
@@ -150,9 +213,9 @@ const generateStreamingResponse = catchAsync(
       },
     };
 
-    // Generate streaming response
+    // **Step 5: Generate streaming response**
     await aiService.generateStreamingResponse(
-      messages,
+      aiMessages,
       callbacks,
       modelName,
       options
@@ -162,95 +225,111 @@ const generateStreamingResponse = catchAsync(
 
 // Process a message and get AI response
 const processMessage = catchAsync(async (req: Request, res: Response) => {
-  const { chatId, message, userId, modelName } = req.body;
+  const { message, modelName, options } = req.body; // Adjusted to take a message object
+  const chatId = message.chatId; // Extract chatId from message object
 
-  // Find or create chat
-  let chat;
-  if (chatId) {
-    chat = await Chat.findById(chatId);
-  }
+  // **Step 1: Start transaction**
+  const session = await mongoose.startSession();
+  session.startTransaction();
 
-  if (!chat) {
-    // Create a new chat using the message as title (truncated if too long)
-    const title =
-      message.length > 50 ? `${message.substring(0, 47)}...` : message;
-    chat = await Chat.create({
-      userId: new Types.ObjectId(userId),
-      user: "User",
-      title,
+  try {
+    // **Step 2: Save user message**
+    const userMessage = await Message.create(
+      [
+        {
+          ...message,
+          isAIResponse: false,
+          isDeleted: false,
+        },
+      ],
+      { session }
+    );
+
+    // **Step 3: Retrieve chat history**
+    const chatHistory = await Message.find(
+      {
+        chatId: chatId,
+        isDeleted: false,
+      },
+      null,
+      { session }
+    ).sort({ createdAt: 1 });
+
+    // Convert to AI messages format
+    const aiMessages: TAIMessage[] = chatHistory.map((msg) => ({
+      role: msg.isAIResponse ? "assistant" : "user",
+      content: msg.message.content,
+    }));
+
+    // Add system prompt, matching generateResponse
+    aiMessages.unshift({
+      role: "system",
+      content: `
+      **Context Awareness**:
+- The messages following this system prompt form the ${chatHistory.toString()}. Use this history as context when the users current prompt relates to it.
+- If the users prompt refers to a poem, poet, or concept mentioned earlier, build on that discussion...
+- If the prompt is standalone or unrelated, treat it as a fresh query...
+      ${defaultSystemPrompt}`,
     });
+
+    // **Step 4: Generate AI response**
+    const aiResponse = await aiService.generateResponse(
+      aiMessages,
+      modelName,
+      options
+    );
+
+    // **Step 5: Save AI message**
+    const aiMessage = await Message.create(
+      [
+        {
+          ...message,
+          message: {
+            contentType: "text",
+            content: aiResponse.content,
+          },
+          user: {
+            senderType: "assistance",
+            senderId: null,
+          },
+          isAIResponse: true,
+          replyToMessageId: userMessage[0]._id,
+          isDeleted: false,
+        },
+      ],
+      { session }
+    );
+
+    // **Step 6: Update chat**
+    await Chat.findByIdAndUpdate(
+      chatId,
+      {
+        lastMessageSnippet: aiResponse.content.substring(0, 50),
+        lastMessageAt: new Date(),
+      },
+      { session }
+    );
+
+    // **Step 7: Commit transaction**
+    await session.commitTransaction();
+
+    // **Step 8: Send response**
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: "Message processed successfully",
+      data: {
+        userMessage: userMessage[0],
+        aiMessage: aiMessage[0],
+        chat: await Chat.findById(chatId),
+      },
+    });
+  } catch (error) {
+    await session.abortTransaction();
+    throw error;
+  } finally {
+    session.endSession();
   }
-
-  // Save user message
-  const userMessage = await Message.create({
-    userId: new Types.ObjectId(userId),
-    user: {
-      senderType: "user",
-      senderId: new Types.ObjectId(userId),
-    },
-    chatId: chat._id,
-    message: {
-      contentType: "text",
-      content: message,
-    },
-    isAIResponse: false,
-    isDeleted: false,
-  });
-
-  // Get chat history
-  const chatHistory = await Message.find({
-    chatId: chat._id,
-    isDeleted: false,
-  }).sort({ createdAt: 1 });
-
-  // Convert chat history to AI messages format
-  const aiMessages: TAIMessage[] = chatHistory.map((msg) => ({
-    role: msg.isAIResponse ? "assistant" : "user",
-    content: msg.message.content,
-  }));
-
-  // Add system message if needed
-  aiMessages.unshift({
-    role: "system",
-    content:
-      "You are a helpful AI assistant that provides accurate and concise information.",
-  });
-
-  // Generate AI response using non-streaming method
-  const aiResponse = await aiService.generateResponse(aiMessages, modelName);
-
-  // Save AI response
-  const aiMessageDoc = await Message.create({
-    userId: new Types.ObjectId(userId),
-    user: {
-      senderType: "ai",
-      senderId: null,
-    },
-    chatId: chat._id,
-    message: {
-      contentType: "text",
-      content: aiResponse.content,
-    },
-    isAIResponse: true,
-    isDeleted: false,
-  });
-
-  // Update chat with last message
-  await Chat.findByIdAndUpdate(chat._id, {
-    lastMessageSnippet: aiResponse.content.substring(0, 50),
-    lastMessageAt: new Date(),
-  });
-
-  sendResponse(res, {
-    statusCode: httpStatus.OK,
-    success: true,
-    message: "Message processed successfully",
-    data: {
-      userMessage,
-      aiMessage: aiMessageDoc,
-      chat,
-    },
-  });
 });
 
 export const AIController = {
