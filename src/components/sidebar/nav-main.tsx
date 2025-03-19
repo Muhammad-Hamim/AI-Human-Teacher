@@ -32,7 +32,7 @@ export function NavMain() {
       title: "Lessons",
       url: "#",
       icon: GraduationCap,
-      isActive: true,
+      isActive: false,
       items: [
         {
           title: "Mathematics",

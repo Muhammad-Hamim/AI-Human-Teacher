@@ -1,16 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-
-import type React from "react";
-
-import { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { Mic, Search, Plus, BrainCircuit, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { addMessage } from "@/redux/features/chat/chatSlice";
-
-import ChatMessages from "./chatMessages";
+import ChatMessages from "./Conversation/ChatMessages";
 import { useNavigate, useParams } from "react-router";
 import { useAppDispatch } from "@/redux/hooks";
 import {
@@ -38,12 +34,15 @@ const AskAi = () => {
   const [rows, setRows] = useState(1);
   const [isThinking, setIsThinking] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null); // Ref to scroll to bottom
   const dispatch = useAppDispatch();
   const [createChat] = useCreateChatMutation();
   const [requestAiResponse] = useRequestAiResponseMutation();
-  const { refetch: refetchMessages } = useGetMessagesQuery(chatId || "");
+  const { refetch: refetchMessages } = useGetMessagesQuery(
+    chatId || ""
+  );
   const { refetch: refetchChatHistory } = useGetChatHistoryQuery(FUserId);
-
+  
   const { register, handleSubmit, reset, watch, setValue } =
     useForm<FormInputs>({
       defaultValues: {
@@ -65,62 +64,46 @@ const AskAi = () => {
       textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
     }
   }, [messageValue]);
-
+  // Scroll to bottom when isThinking changes
+  useEffect(() => {
+    if (isThinking && messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [isThinking]);
   const onSubmit = async (data: FormInputs) => {
     if (data.message && data.message.trim()) {
       const messageContent = data.message.trim();
       let currentChatId = chatId;
 
-      // Set thinking state
       setIsThinking(true);
-      /**
-       * 1. when user'll submit any message/prompt, first it should check where there is a chatId or not. if not first create a chat and use that chatId to store the message for getting response.
-       * after request for response using requestAiResponse, it should refetch messages useGetMessagesQuery to show on the ui.
-       *
-       */
       try {
         if (!currentChatId) {
-          // Add chat to the database
           const response = await createChat(messageContent);
-          console.log(response, chatId, "create chat");
           if (response.data) {
             currentChatId = response.data.data._id;
-            // Navigate to new chat
-            navigate(`/${currentChatId && currentChatId}`);
-            // Refetch chat history after creation
+            navigate(`/${currentChatId}`);
             await refetchChatHistory();
           }
         }
-
-        // Dispatch the user message to the store
         if (currentChatId) {
           await requestAiResponse({
             prompt: data.message,
             chatId: currentChatId,
           }).unwrap();
-          // Refetch messages after AI response
           refetchMessages();
         }
-        // Reset the form
         reset({ message: "" });
         setRows(1);
         if (textareaRef.current) {
           textareaRef.current.style.height = "auto";
         }
-
-        console.log("Sending request to AI API:", messageContent);
-        // Add the AI response to the chat
       } catch (error: any) {
         console.error("Error requesting AI response:", error);
-
-        // Extract the error message
         let errorMessage = "An error occurred while generating the response.";
         if (error.data?.message?.includes("DeepSeek API Error")) {
           errorMessage =
-            "The AI service is currently experiencing issues. This might be due to configuration or service availability. Please try again later.";
+            "The AI service is currently experiencing issues. Please try again later.";
         }
-
-        // Add error message to chat
         dispatch(
           addMessage({
             chatId: currentChatId as string,
@@ -129,16 +112,13 @@ const AskAi = () => {
           })
         );
       } finally {
-        // Stop thinking state
         setIsThinking(false);
       }
     }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    console.log(e.key);
     if (e.key === "Enter" && !e.shiftKey) {
-      console.log("click inside handle key down");
       e.preventDefault();
       handleSubmit(onSubmit)();
     }
@@ -155,29 +135,19 @@ const AskAi = () => {
       recognition.interimResults = false;
       recognition.lang = "en-US";
 
-      recognition.onstart = () => {
-        setIsListening(true);
-      };
-
+      recognition.onstart = () => setIsListening(true);
       recognition.onresult = (event: any) => {
         const transcript = event.results[0][0].transcript;
         setValue("message", transcript);
         setTimeout(() => {
-          if (transcript.trim()) {
-            handleSubmit(onSubmit)();
-          }
+          if (transcript.trim()) handleSubmit(onSubmit)();
         }, 500);
       };
-
       recognition.onerror = (event: any) => {
         console.error("Speech recognition error:", event.error);
         setIsListening(false);
       };
-
-      recognition.onend = () => {
-        setIsListening(false);
-      };
-
+      recognition.onend = () => setIsListening(false);
       recognition.start();
     } else {
       console.error("Speech recognition not supported");
@@ -185,8 +155,7 @@ const AskAi = () => {
   };
 
   return (
-    <main className="flex flex-col h-[calc(100vh-100px)] w-[70%] mx-auto bg-gray-900 rounded-xl border border-gray-800">
-      {/* Messages area with a subtle gradient background */}
+    <main className="flex overflow-hidden flex-col h-[calc(100vh-100px)] w-[70%] mx-auto bg-gray-900 rounded-xl border border-gray-800">
       <div className="flex-1 overflow-y-auto message-scrollbar p-6 pb-4 bg-gray-900">
         <ChatMessages />
         {isThinking && (
@@ -199,9 +168,9 @@ const AskAi = () => {
             </div>
           </div>
         )}
+         <div ref={messagesEndRef} /> {/* Empty div to scroll to */}
       </div>
 
-      {/* Input area with glass effect */}
       <Card className="border border-gray-800 mx-6 my-4 p-3 bg-gray-800/70 backdrop-blur-sm shadow-lg rounded-xl">
         <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col">
           <div className="relative">
@@ -216,7 +185,6 @@ const AskAi = () => {
                 textareaRef.current = e;
               }}
             />
-
             <Button
               type="submit"
               size="icon"
@@ -244,7 +212,6 @@ const AskAi = () => {
                 </TooltipTrigger>
                 <TooltipContent>New chat</TooltipContent>
               </Tooltip>
-
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -276,7 +243,6 @@ const AskAi = () => {
                 </TooltipTrigger>
                 <TooltipContent>Advanced thinking</TooltipContent>
               </Tooltip>
-
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
