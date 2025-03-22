@@ -18,6 +18,7 @@ export type TMessage = {
   isAIResponse: boolean;
   replyToMessageId?: string;
   isDeleted: boolean;
+  isStreaming?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
 };

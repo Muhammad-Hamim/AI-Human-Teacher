@@ -24,6 +24,7 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem,
 } from "@/components/ui/sidebar";
+import { Link } from "react-router";
 
 export function NavMain() {
   // Educational content items
@@ -35,11 +36,11 @@ export function NavMain() {
       isActive: false,
       items: [
         {
-          title: "Mathematics",
-          url: "#",
+          title: "Interactive Poem",
+          url: "/poem",
         },
         {
-          title: "Science",
+          title: "Generate Interactive Poem",
           url: "#",
         },
         {
@@ -50,7 +51,7 @@ export function NavMain() {
     },
     {
       title: "Poems",
-      url: "#",
+      url: "/poem",
       icon: BookOpen,
       items: [
         {
@@ -150,9 +151,9 @@ export function NavMain() {
                   {item.items?.map((subItem) => (
                     <SidebarMenuSubItem key={subItem.title}>
                       <SidebarMenuSubButton asChild>
-                        <a href={subItem.url}>
+                        <Link to={subItem.url}>
                           <span>{subItem.title}</span>
-                        </a>
+                        </Link>
                       </SidebarMenuSubButton>
                     </SidebarMenuSubItem>
                   ))}

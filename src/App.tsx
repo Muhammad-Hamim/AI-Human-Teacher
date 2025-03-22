@@ -1,6 +1,7 @@
 import { Route, Routes } from "react-router";
 import Dashboard from "./components/Layout/Dashboard";
 import AskAi from "./components/Pages/AskAi/AskAi";
+import PoemPage from "./components/Pages/PoemPage/PoemPage";
 
 const App = () => {
   return (
@@ -10,6 +11,7 @@ const App = () => {
         <Route index element={<AskAi />} />
         {/* Dynamic chat route */}
         <Route path=":chatId" element={<AskAi />} />
+      <Route path="/poem" element={<PoemPage />} />
       </Route>
     </Routes>
   );

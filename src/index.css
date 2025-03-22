@@ -3,9 +3,7 @@
 @tailwind utilities;
 
 @plugin "tailwindcss-animate"; */
-html, body{
-  overflow: hidden;
-}
+
 @custom-variant dark (&:is(.dark *));
 
 :root {
@@ -198,29 +196,38 @@ html, body{
   width: 1px;
 }
 /* Custom scrollbar styles */
-.message-scrollbar {
+.message-scrollbar,
+html,
+body {
   scrollbar-width: thin; /* For Firefox */
   scrollbar-color: #212121 #111111; /* For Firefox */
 }
 
-.message-scrollbar::-webkit-scrollbar {
+.message-scrollbar::-webkit-scrollbar,
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
   width: 2px; /* Set the width of the scrollbar */
   background-color: #212121; /* Background color of the scrollbar */
 }
 
-.message-scrollbar::-webkit-scrollbar-thumb {
+.message-scrollbar::-webkit-scrollbar-thumb,
+html::-webkit-scrollbar-thumb,
+body::-webkit-scrollbar-thumb {
   background-color: #444444; /* Thumb color */
   border-radius: 8px; /* Optional: For rounded edges */
 }
 
-.message-scrollbar::-webkit-scrollbar-thumb:hover {
+.message-scrollbar::-webkit-scrollbar-thumb:hover,
+html::-webkit-scrollbar-thumb:hover,
+body::-webkit-scrollbar-thumb:hover {
   background-color: #888888; /* Thumb color on hover */
 }
 
 /* Add these styles to your global CSS file */
 
 /* Ensure all pre and code elements handle overflow properly */
-pre, code {
+pre,
+code {
   overflow-x: auto;
   max-width: 100%;
   white-space: pre-wrap;
@@ -237,7 +244,8 @@ table {
 }
 
 /* Handle long content in table cells */
-td, th {
+td,
+th {
   max-width: 300px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -252,7 +260,16 @@ img {
 }
 
 /* Handle long URLs and text */
-a, p, span, h1, h2, h3, h4, h5, h6, li {
+a,
+p,
+span,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+li {
   word-wrap: break-word;
   overflow-wrap: break-word;
 }
@@ -275,16 +292,63 @@ a, p, span, h1, h2, h3, h4, h5, h6, li {
 }
 
 /* Make sure long Chinese characters wrap properly */
-:lang(zh), :lang(ja), :lang(ko) {
+:lang(zh),
+:lang(ja),
+:lang(ko) {
   word-break: keep-all;
   overflow-wrap: anywhere;
 }
+/* Existing styles... */
 
+/* Stream message animation */
+.stream-message-animation {
+  position: relative;
+  overflow: hidden;
+}
+
+.stream-message-animation::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  width: 100%;
+  background: linear-gradient(90deg, transparent, rgba(99, 102, 241, 0.6), transparent);
+  animation: stream-message-progress 2s infinite;
+}
+
+@keyframes stream-message-progress {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
 /* Fix for Emoji overflow */
 .emoji {
   display: inline;
   height: 1em;
   width: 1em;
-  margin: 0 .05em 0 .1em;
+  margin: 0 0.05em 0 0.1em;
   vertical-align: -0.1em;
 }
+/* High contrast mode */
+.high-contrast {
+  --primary: 221.2 100% 50%;
+  --foreground: 0 0% 0%;
+  --background: 0 0% 100%;
+  --card: 0 0% 95%;
+  --card-foreground: 0 0% 0%;
+  --border: 0 0% 0%;
+}
+
+.dark.high-contrast {
+  --primary: 221.2 100% 70%;
+  --foreground: 0 0% 100%;
+  --background: 0 0% 0%;
+  --card: 0 0% 10%;
+  --card-foreground: 0 0% 100%;
+  --border: 0 0% 100%;
+}
+
