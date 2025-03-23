@@ -27,6 +27,7 @@ The main modal component that handles the voice interaction workflow, including:
 - Visual feedback (waveforms)
 - Loading states
 - Error handling
+- **Markdown rendering** of AI responses
 
 ### 3. AudioAnalyzer
 
@@ -49,13 +50,26 @@ Features:
 - Dark mode optimized visualizations
 - Smooth animations
 
+## Markdown Support
+
+The voice chat now supports markdown in AI responses, with styling for:
+
+- Headers (h1, h2, h3)
+- Code blocks and inline code
+- Lists (ordered and unordered)
+- Links
+- Blockquotes
+- Bold and italic text
+
+When the AI speaks, markdown syntax is automatically stripped for cleaner text-to-speech output.
+
 ## How to Use the Voice Chat
 
 1. Click the microphone button to start speaking
 2. Speak your query clearly
 3. Click the microphone button again when you're done speaking (instead of automatic detection)
 4. The system will show a loading animation while processing your query
-5. The AI response will appear and be spoken aloud
+5. The AI response will appear with markdown formatting and be spoken aloud
 6. You can click "Stop speaking" to interrupt the AI's speech
 7. Click the microphone again to ask another question
 
@@ -68,6 +82,7 @@ To integrate this voice chat feature in your application:
    - `framer-motion` for animations
    - `lucide-react` for icons
    - `sonner` for toast notifications
+   - `react-markdown` for markdown rendering
 
 For a complete example, check the `VoiceChatExample.tsx` file which provides a ready-to-use implementation.
 
@@ -115,6 +130,7 @@ You can customize the appearance of the voice chat components by:
 2. Modifying the color schemes in SpeechWaveform
 3. Adjusting animation parameters in the components
 4. Editing the dialog content in TeacherVoiceModal
+5. Customizing markdown styles in the markdownStyles object
 
 ## Example Usage
 

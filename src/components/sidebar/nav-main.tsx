@@ -1,13 +1,4 @@
-"use client";
-
-import {
-  BookOpen,
-  ChevronRight,
-  GraduationCap,
-  Lightbulb,
-  Music,
-  Pencil,
-} from "lucide-react";
+import { BookOpen, ChevronRight } from "lucide-react";
 
 import {
   Collapsible,
@@ -30,9 +21,9 @@ export function NavMain() {
   // Educational content items
   const educationalItems = [
     {
-      title: "Lessons",
-      url: "#",
-      icon: GraduationCap,
+      title: "Poems",
+      url: "/poem",
+      icon: BookOpen,
       isActive: false,
       items: [
         {
@@ -41,86 +32,6 @@ export function NavMain() {
         },
         {
           title: "Generate Interactive Poem",
-          url: "#",
-        },
-        {
-          title: "Language Arts",
-          url: "#",
-        },
-      ],
-    },
-    {
-      title: "Poems",
-      url: "/poem",
-      icon: BookOpen,
-      items: [
-        {
-          title: "Classical",
-          url: "#",
-        },
-        {
-          title: "Modern",
-          url: "#",
-        },
-        {
-          title: "Contemporary",
-          url: "#",
-        },
-      ],
-    },
-    {
-      title: "Creative Writing",
-      url: "#",
-      icon: Pencil,
-      items: [
-        {
-          title: "Short Stories",
-          url: "#",
-        },
-        {
-          title: "Essays",
-          url: "#",
-        },
-        {
-          title: "Journaling",
-          url: "#",
-        },
-      ],
-    },
-    {
-      title: "Learning Resources",
-      url: "#",
-      icon: Lightbulb,
-      items: [
-        {
-          title: "Worksheets",
-          url: "#",
-        },
-        {
-          title: "Interactive",
-          url: "#",
-        },
-        {
-          title: "Videos",
-          url: "#",
-        },
-      ],
-    },
-    {
-      title: "Music & Arts",
-      url: "#",
-      icon: Music,
-      items: [
-        {
-          title: "Music Theory",
-          url: "#",
-        },
-        {
-          title: "Visual Arts",
-          url: "#",
-        },
-        {
-          title: "Performance",
           url: "#",
         },
       ],

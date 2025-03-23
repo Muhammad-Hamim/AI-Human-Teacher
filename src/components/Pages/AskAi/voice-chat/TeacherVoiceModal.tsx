@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import ReactMarkdown from "react-markdown";
 import {
   Mic,
   MicOff,
@@ -29,7 +30,9 @@ import SpeechWaveform from "./SpeechWaveform";
 // Type declarations for browser APIs
 declare global {
   interface Window {
+    // @ts-expect-error: This is necessary to work with Web Speech API
     SpeechRecognition: any;
+    // @ts-expect-error: This is necessary to work with Web Speech API
     webkitSpeechRecognition: any;
     AudioContext: any;
     webkitAudioContext: any;
@@ -40,6 +43,68 @@ interface TeacherVoiceModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
+
+// Add custom styles for markdown content
+const markdownStyles = {
+  // Code blocks
+  pre: (props: any) => (
+    <pre className="bg-gray-900 p-2 rounded-md overflow-x-auto text-sm my-2">
+      {props.children}
+    </pre>
+  ),
+  // Inline code
+  code: (props: any) => (
+    <code className="bg-gray-900 px-1 py-0.5 rounded text-sm text-teal-400 font-mono">
+      {props.children}
+    </code>
+  ),
+  // Headers
+  h1: (props: any) => (
+    <h1 className="text-xl font-bold my-4">{props.children}</h1>
+  ),
+  h2: (props: any) => (
+    <h2 className="text-lg font-bold my-3">{props.children}</h2>
+  ),
+  h3: (props: any) => (
+    <h3 className="text-md font-bold my-2">{props.children}</h3>
+  ),
+  // Lists
+  ul: (props: any) => <ul className="list-disc pl-6 my-2">{props.children}</ul>,
+  ol: (props: any) => (
+    <ol className="list-decimal pl-6 my-2">{props.children}</ol>
+  ),
+  // Links
+  a: (props: any) => (
+    <a
+      href={props.href}
+      className="text-blue-400 hover:underline"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      {props.children}
+    </a>
+  ),
+  // Block quotes
+  blockquote: (props: any) => (
+    <blockquote className="border-l-4 border-gray-600 pl-4 italic my-2">
+      {props.children}
+    </blockquote>
+  ),
+};
+
+// Utility function to remove markdown syntax for cleaner text-to-speech
+const stripMarkdown = (text: string) => {
+  return text
+    .replace(/\*\*(.*?)\*\*/g, "$1") // Remove bold
+    .replace(/\*(.*?)\*/g, "$1") // Remove italic
+    .replace(/\[(.*?)\]\(.*?\)/g, "$1") // Remove links but keep text
+    .replace(/\n>/g, "\n") // Remove blockquote markers
+    .replace(/`(.*?)`/g, "$1") // Remove inline code markers
+    .replace(/```[\s\S]*?```/g, "") // Remove code blocks
+    .replace(/#/g, "") // Remove heading markers
+    .replace(/\n- /g, "\n") // Remove list markers
+    .replace(/\n\d+\. /g, "\n"); // Remove ordered list markers
+};
 
 const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
   const { chatId } = useParams<{ chatId: string }>();
@@ -186,6 +251,9 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
       setAiResponse("");
       let fullResponse = "";
 
+      // For preserving markdown newlines and formatting
+      let isInCodeBlock = false;
+
       // Stream AI response - fixes for handling different response formats
       try {
         await streamAiResponse({
@@ -195,32 +263,38 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
             // Log the chunk to debug response format
             console.log("AI response chunk:", chunk);
 
+            let contentChunk = "";
+
             // Handle different response formats
             if (typeof chunk === "string") {
-              fullResponse += chunk;
-              setAiResponse((prev) => prev + chunk);
+              contentChunk = chunk;
             } else if (chunk?.message?.content) {
-              fullResponse += chunk.message.content;
-              setAiResponse((prev) => prev + chunk.message.content);
+              contentChunk = chunk.message.content;
             } else if (chunk?.content) {
-              fullResponse += chunk.content;
-              setAiResponse((prev) => prev + chunk.content);
+              contentChunk = chunk.content;
             } else if (chunk?.choices?.[0]?.delta?.content) {
               // Handle OpenAI-like streaming format
-              fullResponse += chunk.choices[0].delta.content;
-              setAiResponse((prev) => prev + chunk.choices[0].delta.content);
+              contentChunk = chunk.choices[0].delta.content;
             } else if (typeof chunk === "object") {
               // Try to extract content from unknown object format
-              const content =
+              contentChunk =
                 chunk?.text ||
                 chunk?.delta?.content ||
                 chunk?.response ||
                 JSON.stringify(chunk);
+            }
 
-              if (content) {
-                fullResponse += content;
-                setAiResponse((prev) => prev + content);
+            if (contentChunk) {
+              // Check for code block delimiters to preserve formatting
+              if (contentChunk.includes("```")) {
+                isInCodeBlock = !isInCodeBlock;
               }
+
+              // Append to full response
+              fullResponse += contentChunk;
+
+              // Update the display with proper formatting
+              setAiResponse(fullResponse);
             }
           },
         }).unwrap();
@@ -252,10 +326,26 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
 
   // Stop speaking
   const stopSpeaking = () => {
-    if (window.speechSynthesis && window.speechSynthesis.speaking) {
-      window.speechSynthesis.cancel();
-      setIsSpeaking(false);
-      toast.info("Stopped speaking");
+    try {
+      if (window.speechSynthesis) {
+        // Cancel any pending speech
+        window.speechSynthesis.cancel();
+
+        // Add a small delay to make sure the events have time to fire properly
+        setTimeout(() => {
+          // Reset state
+          setIsSpeaking(false);
+          setWordIndex(0);
+        }, 50);
+
+        // Only show toast if we were actually speaking
+        if (window.speechSynthesis.speaking || isSpeaking) {
+          toast.info("Stopped speaking");
+        }
+      }
+    } catch (error) {
+      console.error("Error stopping speech:", error);
+      setIsSpeaking(false); // Make sure to reset state even on error
     }
   };
 
@@ -275,42 +365,124 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
     if (!text || !audioEnabled) return;
 
     try {
+      // Make sure speech synthesis is available
+      if (!window.speechSynthesis) {
+        throw new Error("Speech synthesis not supported in this browser");
+      }
+
+      // First stop any ongoing speech
       stopSpeaking();
+
+      // Remove markdown syntax for better speech
+      const cleanText = stripMarkdown(text);
+      if (!cleanText.trim()) {
+        console.warn("Empty text after stripping markdown, nothing to speak");
+        return;
+      }
 
       // Split response into words for highlighting
       responseWordsRef.current = text.split(/\s+/);
       setWordIndex(0);
 
-      speechSynthesisRef.current = new SpeechSynthesisUtterance(text);
+      // Create new utterance
+      speechSynthesisRef.current = new SpeechSynthesisUtterance(cleanText);
 
       // Set properties for more natural voice
       speechSynthesisRef.current.rate = 1.0;
       speechSynthesisRef.current.pitch = 1.0;
+      speechSynthesisRef.current.volume = 1.0;
 
       // Try to use a more natural-sounding voice if available
       const voices = window.speechSynthesis.getVoices();
-      const preferredVoice = voices.find(
+
+      // First try to find an optimal voice based on quality and language
+      let preferredVoice = voices.find(
         (voice) =>
-          voice.name.includes("Google") || voice.name.includes("Neural")
+          (voice.name.includes("Google") ||
+            voice.name.includes("Neural") ||
+            voice.name.includes("Premium")) &&
+          voice.lang.startsWith("zh-CN")
       );
 
-      if (preferredVoice) {
-        speechSynthesisRef.current.voice = preferredVoice;
+      // Fallback to any English voice if no premium voice is found
+      if (!preferredVoice) {
+        preferredVoice = voices.find((voice) => voice.lang.startsWith("zh-CN"));
       }
+
+      if (preferredVoice) {
+        console.log(`Using voice: ${preferredVoice.name}`);
+        speechSynthesisRef.current.voice = preferredVoice;
+      } else if (voices.length > 0) {
+        // Just use the first available voice if no English voice is found
+        console.log(`Fallback to default voice: ${voices[0].name}`);
+        speechSynthesisRef.current.voice = voices[0];
+      } else {
+        console.warn("No voices available for speech synthesis");
+      }
+
+      // Chrome has a bug where after about 15 seconds, speech can be cut off
+      // This workaround helps prevent it by periodically "pinging" the synthesis
+      const preventChromeTimeout = setInterval(() => {
+        if (window.speechSynthesis.speaking) {
+          window.speechSynthesis.pause();
+          window.speechSynthesis.resume();
+        } else {
+          clearInterval(preventChromeTimeout);
+        }
+      }, 10000);
+
+      // Set up event handlers
 
       // Events to track speaking status
       speechSynthesisRef.current.onstart = () => {
         setIsSpeaking(true);
+        console.log("Speech started");
       };
 
+      // Create a single onend handler that handles all cleanup
       speechSynthesisRef.current.onend = () => {
+        clearInterval(preventChromeTimeout);
+        console.log("Speech completed");
         setIsSpeaking(false);
         setWordIndex(0);
+      };
+
+      speechSynthesisRef.current.onpause = () => {
+        console.log("Speech paused");
+      };
+
+      speechSynthesisRef.current.onresume = () => {
+        console.log("Speech resumed");
       };
 
       speechSynthesisRef.current.onerror = (event: any) => {
         console.error("Speech synthesis error:", event);
         setIsSpeaking(false);
+        clearInterval(preventChromeTimeout);
+
+        // Handle interrupted errors specifically
+        if (event.error === "interrupted") {
+          console.log(
+            "Speech was interrupted, this is often expected when stopping speech manually"
+          );
+          // No need to show an error toast for interruptions as they're usually intentional
+        } else {
+          // For other errors, show a toast
+          toast.error(`Speech synthesis error: ${event.error}`);
+
+          // Attempt to retry speech synthesis once for non-interruption errors
+          if (
+            (event.error === "network" || event.error === "audio-busy") &&
+            audioEnabled
+          ) {
+            setTimeout(() => {
+              console.log("Retrying speech synthesis...");
+              if (speechSynthesisRef.current) {
+                window.speechSynthesis.speak(speechSynthesisRef.current);
+              }
+            }, 1000);
+          }
+        }
       };
 
       // Use an interval for word timing
@@ -325,12 +497,56 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
         }
       };
 
+      // Start speaking
       window.speechSynthesis.speak(speechSynthesisRef.current);
     } catch (error) {
       console.error("Error with speech synthesis:", error);
-      toast.error("Failed to speak response");
+      toast.error("Failed to speak response. Please try again later.");
+      setIsSpeaking(false);
     }
   };
+
+  // Initialize speech synthesis
+  useEffect(() => {
+    // Ensure voices are loaded
+    if (window.speechSynthesis) {
+      try {
+        // Get available voices
+        let voices = window.speechSynthesis.getVoices();
+
+        // If voices aren't loaded yet, wait for them
+        if (voices.length === 0) {
+          window.speechSynthesis.addEventListener("voiceschanged", () => {
+            voices = window.speechSynthesis.getVoices();
+            console.log(`Loaded ${voices.length} voices for speech synthesis`);
+          });
+        } else {
+          console.log(`Loaded ${voices.length} voices for speech synthesis`);
+        }
+
+        // Cancel any existing speech synthesis from previous sessions
+        window.speechSynthesis.cancel();
+      } catch (error) {
+        console.error("Error initializing speech synthesis:", error);
+        setAudioEnabled(false);
+        toast.error("Voice output unavailable. Please try again later.");
+      }
+    } else {
+      console.warn("Speech synthesis not supported in this browser");
+      setAudioEnabled(false);
+    }
+
+    // Cleanup on unmount
+    return () => {
+      if (window.speechSynthesis) {
+        try {
+          window.speechSynthesis.cancel();
+        } catch (error) {
+          console.error("Error cancelling speech on unmount:", error);
+        }
+      }
+    };
+  }, []);
 
   // Clean up on unmount
   useEffect(() => {
@@ -361,43 +577,69 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
           }
           return next;
         });
-      }, 200); // Adjust speed as needed
+      }, 220); // Adjust speed as needed
 
       return () => clearInterval(interval);
     }
   }, [isSpeaking, aiResponse, wordIndex]);
 
-  // Render highlighted response text - ChatGPT style
+  // Render highlighted response text - ChatGPT style with markdown support
   const renderHighlightedResponse = () => {
     if (!aiResponse) return null;
 
+    // For speech highlighting we still need plain text
     const words = aiResponse.split(/\s+/);
 
+    // Function to render markdown with highlighting
+    const renderMarkdownWithHighlighting = () => {
+      if (isSpeaking && wordIndex < words.length) {
+        // Split content into parts - before current word, current word, and after
+        const beforeCurrentWord = words.slice(0, wordIndex).join(" ");
+        const currentWord = words[wordIndex];
+        const afterCurrentWord = words.slice(wordIndex + 1).join(" ");
+
+        return (
+          <>
+            {beforeCurrentWord && (
+              <ReactMarkdown className="inline" components={markdownStyles}>
+                {beforeCurrentWord + " "}
+              </ReactMarkdown>
+            )}
+            {currentWord && (
+              <motion.span
+                className="bg-teal-600/30 text-white dark:text-white rounded px-1 py-0.5"
+                animate={{ scale: [1, 1.05, 1] }}
+                transition={{ duration: 0.2 }}
+              >
+                {currentWord}
+              </motion.span>
+            )}{" "}
+            {afterCurrentWord && (
+              <ReactMarkdown className="inline" components={markdownStyles}>
+                {afterCurrentWord}
+              </ReactMarkdown>
+            )}
+          </>
+        );
+      } else {
+        // Just render markdown normally when not speaking
+        return (
+          <ReactMarkdown components={markdownStyles}>
+            {aiResponse}
+          </ReactMarkdown>
+        );
+      }
+    };
+
     return (
-      <motion.p
-        className="text-gray-200 dark:text-white text-base leading-relaxed"
+      <motion.div
+        className="prose prose-invert prose-sm max-w-none text-gray-200 dark:text-white text-base leading-relaxed"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5 }}
       >
-        {words.map((word: string, index: number) => (
-          <React.Fragment key={index}>
-            <motion.span
-              className={
-                index === wordIndex && isSpeaking
-                  ? "bg-teal-600/30 text-white dark:text-white rounded px-1 py-0.5"
-                  : ""
-              }
-              animate={
-                index === wordIndex && isSpeaking ? { scale: [1, 1.05, 1] } : {}
-              }
-              transition={{ duration: 0.2 }}
-            >
-              {word}
-            </motion.span>{" "}
-          </React.Fragment>
-        ))}
-      </motion.p>
+        {renderMarkdownWithHighlighting()}
+      </motion.div>
     );
   };
 
@@ -452,7 +694,7 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
           )}
 
           {/* Conversation area with transcript and AI response */}
-          <div className="flex-1 flex flex-col gap-4 min-h-[300px]">
+          <div className="flex-1 flex flex-col gap-4 min-h-[350px]">
             {/* User's speech area */}
             <div className="relative h-auto min-h-24">
               <AnimatePresence>

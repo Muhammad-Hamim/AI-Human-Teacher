@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { motion } from "framer-motion";
+import ReactMarkdown from "react-markdown";
 import { Avatar } from "@/components/ui/avatar";
 import { useParams } from "react-router";
 import { TMessage } from "@/types/messages/TMessages";
@@ -9,6 +10,54 @@ interface ChatMessageProps {
   streamingMessageId?: string | null;
   streamedContent?: string;
 }
+
+// Add custom styles for markdown content
+const markdownStyles = {
+  // Code blocks
+  pre: (props: any) => (
+    <pre className="bg-gray-800 p-2 rounded-md overflow-x-auto text-sm my-2">
+      {props.children}
+    </pre>
+  ),
+  // Inline code
+  code: (props: any) => (
+    <code className="bg-gray-800 px-1 py-0.5 rounded text-sm text-teal-400 font-mono">
+      {props.children}
+    </code>
+  ),
+  // Headers
+  h1: (props: any) => (
+    <h1 className="text-xl font-bold my-4">{props.children}</h1>
+  ),
+  h2: (props: any) => (
+    <h2 className="text-lg font-bold my-3">{props.children}</h2>
+  ),
+  h3: (props: any) => (
+    <h3 className="text-md font-bold my-2">{props.children}</h3>
+  ),
+  // Lists
+  ul: (props: any) => <ul className="list-disc pl-6 my-2">{props.children}</ul>,
+  ol: (props: any) => (
+    <ol className="list-decimal pl-6 my-2">{props.children}</ol>
+  ),
+  // Links
+  a: (props: any) => (
+    <a
+      href={props.href}
+      className="text-blue-400 hover:underline"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      {props.children}
+    </a>
+  ),
+  // Block quotes
+  blockquote: (props: any) => (
+    <blockquote className="border-l-4 border-gray-600 pl-4 italic my-2">
+      {props.children}
+    </blockquote>
+  ),
+};
 
 const ChatMessage = ({
   streamingMessageId,
@@ -95,6 +144,31 @@ const ChatMessage = ({
     filteredMessages.push(streamingMessage);
   }
 
+  // Function to render message content with markdown support
+  const renderMessageContent = (
+    content: string,
+    isAI: boolean,
+    isStreaming: boolean
+  ) => {
+    // If it's user message or empty, just render plain text
+    if (!isAI || !content.trim()) {
+      return (
+        <div className="whitespace-pre-wrap">
+          {content}
+          {isStreaming && <span className="animate-pulse">▋</span>}
+        </div>
+      );
+    }
+
+    // For AI messages, render with markdown
+    return (
+      <div className="prose prose-invert prose-sm max-w-none">
+        <ReactMarkdown components={markdownStyles}>{content}</ReactMarkdown>
+        {isStreaming && <span className="animate-pulse">▋</span>}
+      </div>
+    );
+  };
+
   return (
     <>
       {chatId ? (
@@ -143,12 +217,12 @@ const ChatMessage = ({
                       : "bg-secondary text-secondary-foreground rounded-tl-none"
                   } ${message.isStreaming ? "stream-message-animation" : ""}`}
                 >
-                  <div className="whitespace-pre-wrap">
-                    {message.message.content}
-                    {message.isStreaming && (
-                      <span className="animate-pulse">▋</span>
-                    )}
-                  </div>
+                  {renderMessageContent(
+                    message.message.content,
+                    message.user.senderType === "assistant" &&
+                      message.isAIResponse,
+                    !!message.isStreaming
+                  )}
                 </div>
               </div>
             </motion.div>
