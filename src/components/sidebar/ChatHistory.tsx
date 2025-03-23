@@ -78,7 +78,7 @@ export function ChatHistory() {
             : chatHistory.data.map((chat: TChatHistory) => (
                 <SidebarMenuItem key={chat._id}>
                   <SidebarMenuButton asChild>
-                    <NavLink to={`/${chat._id}`} className="cursor-pointer">
+                    <NavLink to={`/ask/${chat._id}`} className="cursor-pointer">
                       <span>{chat.title}</span>
                     </NavLink>
                   </SidebarMenuButton>

@@ -10,7 +10,7 @@ const App = () => {
         {/* The index route could be for a "welcome" or new chat screen */}
         <Route index element={<AskAi />} />
         {/* Dynamic chat route */}
-        <Route path=":chatId" element={<AskAi />} />
+        <Route path="/ask/:chatId" element={<AskAi />} />
       <Route path="/poem" element={<PoemPage />} />
       </Route>
     </Routes>

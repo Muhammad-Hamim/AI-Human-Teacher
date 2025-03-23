@@ -1,359 +1,645 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import React, { useState, useRef, useEffect } from "react"
-import { motion, AnimatePresence } from "framer-motion"
-import { Mic, MicOff, X, Volume2, Volume1, VolumeX } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent } from "@/components/ui/dialog"
-import { useStreamAiResponseMutation } from "@/redux/features/chat/chatApi"
-import { useParams } from "react-router"
-import { useCreateChatMutation } from "@/redux/features/chatHistory/chatHistoryApi"
-import { useNavigate } from "react-router"
-import AdvancedWaveform from "./AdvancedWaveform"
-import AudioAnalyzer from "./AudioAnalyzer"
+import React, { useState, useRef, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Mic,
+  MicOff,
+  X,
+  Volume2,
+  VolumeX,
+  StopCircle,
+  Loader2,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { useStreamAiResponseMutation } from "@/redux/features/chat/chatApi";
+import { useParams } from "react-router";
+import { useCreateChatMutation } from "@/redux/features/chatHistory/chatHistoryApi";
+import { useNavigate } from "react-router";
+import { toast } from "sonner";
+import AudioAnalyzer from "./AudioAnalyzer";
+import SpeechWaveform from "./SpeechWaveform";
 
 // Type declarations for browser APIs
 declare global {
   interface Window {
-    SpeechRecognition: any
-    webkitSpeechRecognition: any
-    AudioContext: any
-    webkitAudioContext: any
+    SpeechRecognition: any;
+    webkitSpeechRecognition: any;
+    AudioContext: any;
+    webkitAudioContext: any;
   }
 }
 
 interface TeacherVoiceModalProps {
-  isOpen: boolean
-  onClose: () => void
+  isOpen: boolean;
+  onClose: () => void;
 }
 
 const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
-  const { chatId } = useParams<{ chatId: string }>()
-  const navigate = useNavigate()
-  const [isListening, setIsListening] = useState(false)
-  const [transcript, setTranscript] = useState("")
-  const [aiResponse, setAiResponse] = useState("")
-  const [isSpeaking, setIsSpeaking] = useState(false)
-  const [audioEnabled, setAudioEnabled] = useState(true)
-  const [speechIntensity, setSpeechIntensity] = useState(0)
-  const [createChat] = useCreateChatMutation()
-  const [streamAiResponse] = useStreamAiResponseMutation()
-  const recognitionRef = useRef<any>(null)
-  const speechSynthesisRef = useRef<SpeechSynthesisUtterance | null>(null)
-  const [greeting, setGreeting] = useState(true)
-  const [wordIndex, setWordIndex] = useState(0)
-  const responseWordsRef = useRef<string[]>([])
+  const { chatId } = useParams<{ chatId: string }>();
+  const navigate = useNavigate();
+  const [isListening, setIsListening] = useState(false);
+  const [transcript, setTranscript] = useState("");
+  const [aiResponse, setAiResponse] = useState("");
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [audioEnabled, setAudioEnabled] = useState(true);
+  const [speechIntensity, setSpeechIntensity] = useState(0);
+  const [createChat] = useCreateChatMutation();
+  const [streamAiResponse] = useStreamAiResponseMutation();
+  const recognitionRef = useRef<any>(null);
+  const speechSynthesisRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const [wordIndex, setWordIndex] = useState(0);
+  const responseWordsRef = useRef<string[]>([]);
+  const [processingQuery, setProcessingQuery] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isBrowserSupported, setIsBrowserSupported] = useState(true);
 
-  // Initialize Web Speech API
+  // Check browser compatibility
   useEffect(() => {
-    if (isOpen && greeting) {
-      setTimeout(() => {
-        const greetingText = "Hello! I'm your AI teacher assistant. How can I help you today?"
-        speakText(greetingText)
-        setGreeting(false)
-      }, 1000)
-    }
+    if (typeof window !== "undefined") {
+      // Check browser support
+      const isSpeechRecognitionSupported =
+        "SpeechRecognition" in window || "webkitSpeechRecognition" in window;
+      const isSpeechSynthesisSupported = "speechSynthesis" in window;
 
-    return () => {
-      if (recognitionRef.current) {
-        recognitionRef.current.stop()
+      if (!isSpeechRecognitionSupported || !isSpeechSynthesisSupported) {
+        setIsBrowserSupported(false);
+        setError(
+          "Your browser doesn't support the Speech Recognition API. Please try using Chrome, Edge, or Safari."
+        );
+        return;
       }
-      if (speechSynthesis) {
-        speechSynthesis.cancel()
-      }
-    }
-  }, [isOpen, greeting])
 
-  // Handle speech intensity updates
-  const handleAudioAnalysis = (intensity: number) => {
-    setSpeechIntensity(intensity)
-  }
+      // Setup speech recognition
+      const SpeechRecognition =
+        window.SpeechRecognition || window.webkitSpeechRecognition;
+      recognitionRef.current = new SpeechRecognition();
+      recognitionRef.current.continuous = true;
+      recognitionRef.current.interimResults = true;
 
-  const startListening = () => {
-    if (!("SpeechRecognition" in window || "webkitSpeechRecognition" in window)) {
-      alert("Your browser doesn't support speech recognition. Try Chrome or Edge.")
-      return
-    }
+      recognitionRef.current.onresult = (event: any) => {
+        const result = event.results[event.results.length - 1];
+        const transcript = result[0].transcript;
+        setTranscript(transcript);
+      };
 
-    const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition
-    recognitionRef.current = new SpeechRecognitionAPI()
-    recognitionRef.current.continuous = true
-    recognitionRef.current.interimResults = true
-    recognitionRef.current.lang = "en-US"
-
-    recognitionRef.current.onstart = () => {
-      setIsListening(true)
-      setTranscript("")
-    }
-
-    recognitionRef.current.onresult = (event: any) => {
-      let interimTranscript = ""
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcript = event.results[i][0].transcript
-        if (event.results[i].isFinal) {
-          setTranscript((prev) => prev + transcript + " ")
-        } else {
-          interimTranscript += transcript
+      recognitionRef.current.onerror = (event: any) => {
+        console.error("Speech recognition error", event);
+        if (event.error === "not-allowed") {
+          setError("Microphone access denied. Please allow microphone access.");
         }
-      }
+        setIsListening(false);
+      };
 
-      // Update with interim results
-      const interimElement = document.getElementById("interim-transcript")
-      if (interimElement) {
-        interimElement.textContent = interimTranscript
-      }
+      return () => {
+        // Cleanup
+        if (recognitionRef.current) {
+          try {
+            recognitionRef.current.stop();
+          } catch {
+            // Ignore errors when stopping
+          }
+        }
+
+        if (speechSynthesisRef.current) {
+          window.speechSynthesis.cancel();
+        }
+      };
     }
+  }, []);
 
-    recognitionRef.current.onerror = (event: any) => {
-      console.error("Speech recognition error", event.error)
-      setIsListening(false)
-    }
+  // Handle audio analysis
+  const handleAudioAnalysis = (intensity: number) => {
+    setSpeechIntensity(intensity);
+  };
 
-    recognitionRef.current.onend = () => {
-      setIsListening(false)
-    }
-
-    recognitionRef.current.start()
-  }
-
-  const stopListening = async () => {
-    if (recognitionRef.current) {
-      recognitionRef.current.stop()
-      setIsListening(false)
-
-      // Process the transcript if it's not empty
+  // Toggle listening and handle query sending
+  const toggleListening = () => {
+    if (isListening) {
+      stopListening();
+      // If there's a transcript, send it when stopping
       if (transcript.trim()) {
-        await processUserQuery(transcript.trim())
+        handleSendQuery(transcript);
       }
+    } else {
+      startListening();
     }
-  }
+  };
 
-  const processUserQuery = async (query: string) => {
-    setAiResponse("")
-    setWordIndex(0)
-    responseWordsRef.current = []
-    let currentChatId = chatId
+  // Start listening
+  const startListening = () => {
+    try {
+      setIsListening(true);
+      setTranscript(""); // Clear previous transcript
+      recognitionRef.current?.start();
+      toast.success("Voice chat started");
+    } catch (error) {
+      console.error("Error starting speech recognition:", error);
+      toast.error("Error starting voice chat");
+    }
+  };
+
+  // Stop listening
+  const stopListening = () => {
+    try {
+      setIsListening(false);
+      recognitionRef.current?.stop();
+    } catch (error) {
+      console.error("Error stopping speech recognition:", error);
+    }
+  };
+
+  // Send query to AI
+  const handleSendQuery = async (query: string) => {
+    if (!query.trim()) return;
 
     try {
+      setProcessingQuery(true);
+      let currentChatId = chatId;
+
+      // If we don't have a chat ID, create a new chat
       if (!currentChatId) {
-        const response = await createChat(query)
-        if (response.data) {
-          currentChatId = response.data.data._id
-          navigate(`/${currentChatId}`)
+        try {
+          const response = await createChat(query).unwrap();
+          if (response && response.data && response.data._id) {
+            currentChatId = response.data._id;
+            // Navigate to the new chat
+            navigate(`/ask/${currentChatId}`);
+          } else {
+            throw new Error("Failed to get chat ID from response");
+          }
+        } catch (error) {
+          console.error("Error creating new chat:", error);
+          toast.error("Failed to create a new chat");
+          setProcessingQuery(false);
+          return;
         }
       }
 
-      if (currentChatId) {
-        let fullResponse = ""
+      // Clear previous responses
+      setAiResponse("");
+      let fullResponse = "";
 
+      // Stream AI response - fixes for handling different response formats
+      try {
         await streamAiResponse({
           prompt: query,
-          chatId: currentChatId,
-          onChunk: (chunk) => {
+          chatId: currentChatId as string,
+          onChunk: (chunk: any) => {
+            // Log the chunk to debug response format
+            console.log("AI response chunk:", chunk);
+
+            // Handle different response formats
             if (typeof chunk === "string") {
-              fullResponse += chunk
-              setAiResponse((prev) => prev + chunk)
-            } else if (chunk.message?.content) {
-              fullResponse += chunk.message.content
-              setAiResponse((prev) => prev + chunk.message.content)
+              fullResponse += chunk;
+              setAiResponse((prev) => prev + chunk);
+            } else if (chunk?.message?.content) {
+              fullResponse += chunk.message.content;
+              setAiResponse((prev) => prev + chunk.message.content);
+            } else if (chunk?.content) {
+              fullResponse += chunk.content;
+              setAiResponse((prev) => prev + chunk.content);
+            } else if (chunk?.choices?.[0]?.delta?.content) {
+              // Handle OpenAI-like streaming format
+              fullResponse += chunk.choices[0].delta.content;
+              setAiResponse((prev) => prev + chunk.choices[0].delta.content);
+            } else if (typeof chunk === "object") {
+              // Try to extract content from unknown object format
+              const content =
+                chunk?.text ||
+                chunk?.delta?.content ||
+                chunk?.response ||
+                JSON.stringify(chunk);
+
+              if (content) {
+                fullResponse += content;
+                setAiResponse((prev) => prev + content);
+              }
             }
           },
-        }).unwrap()
+        }).unwrap();
 
-        if (audioEnabled) {
-          // Split response into words for word-by-word highlighting
-          responseWordsRef.current = fullResponse.split(/\s+/)
-          speakText(fullResponse)
+        console.log("Full AI response:", fullResponse);
+
+        // If we didn't get any response content, show an error
+        if (!fullResponse.trim()) {
+          setAiResponse("I couldn't generate a response. Please try again.");
+          toast.error("Received empty response from AI");
         }
+
+        // Speak the response if audio is enabled
+        if (audioEnabled && fullResponse.trim()) {
+          speakResponse(fullResponse);
+        }
+      } catch (error) {
+        console.error("Error streaming AI response:", error);
+        toast.error("Failed to get AI response");
+        setAiResponse(
+          "Sorry, I encountered an error while processing your request. Please try again."
+        );
       }
-    } catch (error) {
-      console.error("Error processing query:", error)
-      setAiResponse("I'm sorry, I encountered an error processing your request.")
+    } finally {
+      setProcessingQuery(false);
+      setTranscript(""); // Clear transcript after sending
     }
-  }
+  };
 
-  const speakText = (text: string) => {
-    if (!audioEnabled) return
-
-    if (speechSynthesis.speaking) {
-      speechSynthesis.cancel()
+  // Stop speaking
+  const stopSpeaking = () => {
+    if (window.speechSynthesis && window.speechSynthesis.speaking) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+      toast.info("Stopped speaking");
     }
+  };
 
-    speechSynthesisRef.current = new SpeechSynthesisUtterance(text)
-    speechSynthesisRef.current.rate = 1
-    speechSynthesisRef.current.pitch = 1
-
-    // Try to use a male voice
-    const voices = speechSynthesis.getVoices()
-    const maleVoice = voices.find(
-      (voice) =>
-        voice.name.includes("Male") ||
-        voice.name.includes("male") ||
-        (!voice.name.includes("Female") && !voice.name.includes("female")),
-    )
-
-    if (maleVoice) {
-      speechSynthesisRef.current.voice = maleVoice
-    }
-
-    // Word boundary event for highlighting current word
-    speechSynthesisRef.current.onboundary = (event) => {
-      if (event.name === "word" && responseWordsRef.current.length > 0) {
-        const wordIndex = Math.min(event.charIndex, responseWordsRef.current.length - 1)
-        setWordIndex(wordIndex)
-        setCurrentWord(responseWordsRef.current[wordIndex])
-      }
-    }
-
-    speechSynthesisRef.current.onstart = () => {
-      setIsSpeaking(true)
-    }
-
-    speechSynthesisRef.current.onend = () => {
-      setIsSpeaking(false)
-      setWordIndex(0)
-      setCurrentWord("")
-    }
-
-    speechSynthesis.speak(speechSynthesisRef.current)
-  }
-
+  // Toggle audio
   const toggleAudio = () => {
-    setAudioEnabled(!audioEnabled)
-    if (speechSynthesis.speaking && audioEnabled) {
-      speechSynthesis.cancel()
-      setIsSpeaking(false)
+    setAudioEnabled(!audioEnabled);
+    if (isSpeaking && audioEnabled) {
+      stopSpeaking();
+      toast.info("Voice output disabled");
+    } else if (!audioEnabled) {
+      toast.info("Voice output enabled");
     }
-  }
+  };
 
-  // Render highlighted response text with current word highlighted
+  // Speak response using speech synthesis
+  const speakResponse = (text: string) => {
+    if (!text || !audioEnabled) return;
+
+    try {
+      stopSpeaking();
+
+      // Split response into words for highlighting
+      responseWordsRef.current = text.split(/\s+/);
+      setWordIndex(0);
+
+      speechSynthesisRef.current = new SpeechSynthesisUtterance(text);
+
+      // Set properties for more natural voice
+      speechSynthesisRef.current.rate = 1.0;
+      speechSynthesisRef.current.pitch = 1.0;
+
+      // Try to use a more natural-sounding voice if available
+      const voices = window.speechSynthesis.getVoices();
+      const preferredVoice = voices.find(
+        (voice) =>
+          voice.name.includes("Google") || voice.name.includes("Neural")
+      );
+
+      if (preferredVoice) {
+        speechSynthesisRef.current.voice = preferredVoice;
+      }
+
+      // Events to track speaking status
+      speechSynthesisRef.current.onstart = () => {
+        setIsSpeaking(true);
+      };
+
+      speechSynthesisRef.current.onend = () => {
+        setIsSpeaking(false);
+        setWordIndex(0);
+      };
+
+      speechSynthesisRef.current.onerror = (event: any) => {
+        console.error("Speech synthesis error:", event);
+        setIsSpeaking(false);
+      };
+
+      // Use an interval for word timing
+      let wordCount = 0;
+      const totalWords = responseWordsRef.current.length;
+
+      speechSynthesisRef.current.onboundary = (event) => {
+        if (event.name === "word") {
+          wordCount++;
+          const progress = Math.min(wordCount, totalWords - 1);
+          setWordIndex(progress);
+        }
+      };
+
+      window.speechSynthesis.speak(speechSynthesisRef.current);
+    } catch (error) {
+      console.error("Error with speech synthesis:", error);
+      toast.error("Failed to speak response");
+    }
+  };
+
+  // Clean up on unmount
+  useEffect(() => {
+    return () => {
+      stopListening();
+      stopSpeaking();
+    };
+  }, []);
+
+  // Reset word highlighting when new response arrives
+  useEffect(() => {
+    if (aiResponse) {
+      responseWordsRef.current = aiResponse.split(/\s+/);
+    }
+  }, [aiResponse]);
+
+  // Word highlighting animation - similar to ChatGPT
+  useEffect(() => {
+    if (isSpeaking && aiResponse && !responseWordsRef.current[wordIndex]) {
+      // If word index is invalid, create a fallback animation
+      const words = aiResponse.split(/\s+/);
+      const interval = setInterval(() => {
+        setWordIndex((prev) => {
+          const next = prev + 1;
+          if (next >= words.length) {
+            clearInterval(interval);
+            return 0;
+          }
+          return next;
+        });
+      }, 200); // Adjust speed as needed
+
+      return () => clearInterval(interval);
+    }
+  }, [isSpeaking, aiResponse, wordIndex]);
+
+  // Render highlighted response text - ChatGPT style
   const renderHighlightedResponse = () => {
-    if (!aiResponse) return null
+    if (!aiResponse) return null;
 
-    const words = aiResponse.split(/\s+/)
+    const words = aiResponse.split(/\s+/);
 
     return (
-      <p className="text-white">
-        {words.map((word, index) => (
+      <motion.p
+        className="text-gray-200 dark:text-white text-base leading-relaxed"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.5 }}
+      >
+        {words.map((word: string, index: number) => (
           <React.Fragment key={index}>
-            <span className={index === wordIndex && isSpeaking ? "bg-indigo-600 text-white px-1 rounded" : ""}>
+            <motion.span
+              className={
+                index === wordIndex && isSpeaking
+                  ? "bg-teal-600/30 text-white dark:text-white rounded px-1 py-0.5"
+                  : ""
+              }
+              animate={
+                index === wordIndex && isSpeaking ? { scale: [1, 1.05, 1] } : {}
+              }
+              transition={{ duration: 0.2 }}
+            >
               {word}
-            </span>{" "}
+            </motion.span>{" "}
           </React.Fragment>
         ))}
-      </p>
-    )
-  }
+      </motion.p>
+    );
+  };
+
+  const handleClose = () => {
+    stopListening();
+    stopSpeaking();
+    onClose();
+  };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-[700px] bg-gray-900 border-gray-800 text-white p-0 overflow-hidden">
-        <div className="relative h-[600px] flex flex-col">
-          {/* Header */}
-          <div className="flex justify-between items-center p-4 border-b border-gray-800">
-            <h2 className="text-xl font-semibold">AI Teacher Assistant</h2>
-            <div className="flex gap-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={toggleAudio}
-                className="h-8 w-8 rounded-full hover:bg-gray-800"
-              >
-                {audioEnabled ? (
-                  isSpeaking ? (
-                    <Volume2 className="h-4 w-4" />
-                  ) : (
-                    <Volume1 className="h-4 w-4" />
-                  )
-                ) : (
-                  <VolumeX className="h-4 w-4" />
-                )}
-              </Button>
-              <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8 rounded-full hover:bg-gray-800">
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-
-          {/* Teacher Character and Animation */}
-          <div className="flex-1 flex flex-col items-center p-6 overflow-hidden">
-            
-
-            {/* Audio Visualizer */}
-            <div className="w-full h-16 mb-4">
-              <AdvancedWaveform
-                isActive={isSpeaking}
-                intensity={speechIntensity}
-                color="#8b5cf6"
-                backgroundColor="rgba(30, 30, 30, 0.3)"
-              />
-              {isSpeaking && <AudioAnalyzer onAnalysis={handleAudioAnalysis} isActive={isSpeaking} />}
-            </div>
-
-            {/* Transcript and Response */}
-            <div className="w-full max-h-[180px] overflow-y-auto mb-4 bg-gray-800/50 rounded-lg p-4">
-              {transcript && (
-                <div className="mb-4">
-                  <p className="text-sm text-gray-400">You said:</p>
-                  <p className="text-white">{transcript}</p>
-                  <p id="interim-transcript" className="text-gray-400 italic"></p>
-                </div>
-              )}
-
-              {aiResponse && (
-                <div>
-                  <p className="text-sm text-gray-400">AI Teacher:</p>
-                  {renderHighlightedResponse()}
-                </div>
-              )}
-
-              {!transcript && !aiResponse && (
-                <p className="text-gray-400 text-center">Click the microphone button to start speaking</p>
-              )}
-            </div>
-          </div>
-
-          {/* Microphone Controls */}
-          <div className="p-4 border-t border-gray-800 flex justify-center">
-            <AnimatePresence mode="wait">
-              {!isListening ? (
-                <motion.div
-                  key="start"
-                  initial={{ scale: 0.8, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  exit={{ scale: 0.8, opacity: 0 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  <Button
-                    onClick={startListening}
-                    className="h-14 w-14 rounded-full bg-indigo-600 hover:bg-indigo-700 flex items-center justify-center"
-                  >
-                    <Mic className="h-6 w-6" />
-                  </Button>
-                </motion.div>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
+      <DialogContent className="sm:max-w-[700px] bg-gray-950 border-gray-800 text-white p-0 overflow-hidden rounded-xl">
+        <DialogHeader className="bg-gray-900 p-4 flex flex-row items-center justify-between border-b border-gray-800">
+          <DialogTitle className="text-xl font-bold text-white">
+            Voice Conversation
+          </DialogTitle>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleAudio}
+              className="h-8 w-8 rounded-full hover:bg-gray-800 text-gray-400 hover:text-white"
+              title={audioEnabled ? "Mute AI voice" : "Unmute AI voice"}
+            >
+              {audioEnabled ? (
+                <Volume2 className="h-4 w-4" />
               ) : (
-                <motion.div
-                  key="stop"
-                  initial={{ scale: 0.8, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  exit={{ scale: 0.8, opacity: 0 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  <Button
-                    onClick={stopListening}
-                    className="h-14 w-14 rounded-full bg-red-600 hover:bg-red-700 flex items-center justify-center"
-                  >
-                    <MicOff className="h-6 w-6" />
-                  </Button>
-                </motion.div>
+                <VolumeX className="h-4 w-4" />
               )}
-            </AnimatePresence>
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-full hover:bg-gray-800 text-gray-400 hover:text-white"
+              onClick={handleClose}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        </DialogHeader>
+
+        <div className="flex flex-col p-6 space-y-6 bg-gray-900">
+          {/* Error message */}
+          {error && (
+            <div className="bg-red-900/20 border border-red-800 text-red-300 p-4 rounded-lg">
+              <p className="text-sm font-medium">{error}</p>
+              <p className="text-xs mt-1 opacity-80">
+                For the best voice experience, please use a supported browser
+                like Chrome, Edge, or Safari.
+              </p>
+            </div>
+          )}
+
+          {/* Conversation area with transcript and AI response */}
+          <div className="flex-1 flex flex-col gap-4 min-h-[300px]">
+            {/* User's speech area */}
+            <div className="relative h-auto min-h-24">
+              <AnimatePresence>
+                {transcript && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="w-full mb-4"
+                  >
+                    <div className="bg-gray-800 p-4 rounded-xl shadow-md">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="flex h-6 w-6 rounded-full bg-blue-500 items-center justify-center">
+                          <span className="text-xs text-white font-medium">
+                            You
+                          </span>
+                        </div>
+                        <p className="text-sm font-medium text-white">You</p>
+                      </div>
+                      <p className="text-gray-200">{transcript}</p>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Show waveform when user is speaking */}
+              {isListening && !processingQuery && !isSpeaking && (
+                <div className="w-full h-12 mt-2">
+                  <SpeechWaveform
+                    isActive={isListening && !processingQuery && !isSpeaking}
+                    intensity={speechIntensity}
+                    color="#3b82f6"
+                    backgroundColor="rgba(30, 41, 59, 0.5)"
+                    mode="user"
+                  />
+                  <AudioAnalyzer
+                    isActive={isListening && !processingQuery && !isSpeaking}
+                    onAnalysis={handleAudioAnalysis}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* AI's response area */}
+            <div className="relative h-auto min-h-32">
+              <AnimatePresence>
+                {/* Processing indicator (ChatGPT style) */}
+                {processingQuery && !aiResponse && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="w-full mb-4"
+                  >
+                    <div className="bg-gray-800 p-4 rounded-xl shadow-md">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="flex h-6 w-6 rounded-full bg-teal-500 items-center justify-center">
+                          <span className="text-xs text-white font-medium">
+                            AI
+                          </span>
+                        </div>
+                        <p className="text-sm font-medium text-white">
+                          Assistant
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Loader2 className="h-5 w-5 text-teal-500 animate-spin" />
+                        <p className="text-gray-400">Thinking...</p>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* AI response */}
+                {aiResponse && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="w-full mb-4"
+                  >
+                    <div className="bg-gray-800 p-4 rounded-xl shadow-md relative">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <div className="flex h-6 w-6 rounded-full bg-teal-500 items-center justify-center">
+                            <span className="text-xs text-white font-medium">
+                              AI
+                            </span>
+                          </div>
+                          <p className="text-sm font-medium text-white">
+                            Assistant
+                          </p>
+                        </div>
+
+                        {/* Stop speaking button */}
+                        {isSpeaking && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 px-2 text-xs flex items-center gap-1 text-gray-400 hover:text-white"
+                            onClick={stopSpeaking}
+                          >
+                            <StopCircle className="h-3 w-3" />
+                            <span>Stop speaking</span>
+                          </Button>
+                        )}
+                      </div>
+                      {renderHighlightedResponse()}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* AI waveform (ChatGPT style) */}
+              {isSpeaking && (
+                <div className="w-full h-12 mt-2">
+                  <SpeechWaveform
+                    isActive={isSpeaking}
+                    intensity={0.5}
+                    color="#10b981"
+                    backgroundColor="rgba(17, 24, 39, 0.5)"
+                    mode="ai"
+                  />
+                </div>
+              )}
+
+              {/* Loading indicator */}
+              {processingQuery && !aiResponse && (
+                <div className="w-full h-12 mt-2">
+                  <SpeechWaveform
+                    isActive={true}
+                    intensity={0.5}
+                    color="#8b5cf6"
+                    backgroundColor="rgba(17, 24, 39, 0.5)"
+                    mode="loading"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Controls */}
+          <div className="flex justify-center space-y-4 mt-4">
+            <div className="flex items-center gap-4">
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <Button
+                  variant={isListening ? "destructive" : "default"}
+                  size="icon"
+                  className={`rounded-full h-14 w-14 ${
+                    isListening
+                      ? "bg-red-600 hover:bg-red-700 border-none text-white"
+                      : "bg-blue-600 hover:bg-blue-700 border-none text-white"
+                  } transition-all duration-200 shadow-lg`}
+                  onClick={toggleListening}
+                  disabled={
+                    processingQuery || !isBrowserSupported || isSpeaking
+                  }
+                >
+                  {isListening ? (
+                    <MicOff className="h-6 w-6" />
+                  ) : (
+                    <Mic className="h-6 w-6" />
+                  )}
+                </Button>
+              </motion.div>
+            </div>
+          </div>
+
+          <div className="text-center text-xs text-gray-400 mt-2">
+            {isListening &&
+              !processingQuery &&
+              !isSpeaking &&
+              "Speak now... Click the microphone button again when done."}
+            {processingQuery && "Processing your request..."}
+            {isSpeaking &&
+              "AI is speaking... You can click the Stop button to interrupt."}
+            {!isListening &&
+              !processingQuery &&
+              !isSpeaking &&
+              "Click the microphone to start speaking."}
           </div>
         </div>
       </DialogContent>
     </Dialog>
-  )
-}
+  );
+};
 
-export default TeacherVoiceModal
-
+export default TeacherVoiceModal;

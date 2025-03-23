@@ -6,13 +6,13 @@ import { chatHistoryApi } from "./features/chatHistory/chatHistoryApi";
 import { deepSeekApi } from "./features/interactivePoem/deepSeekApi";
 import userProgressReducer from "./features/interactivePoem/userProgressSlice";
 import themeReducer from "./features/interactivePoem/themeSlice";
-import voiceChatReducer from "./features/voiceChat/voiceChatSlice"
+import voiceChatReducer from "./features/voiceChat/voiceChatSlice";
 
 // Create an object with all API reducers
 const apiReducers = {
   [chatApi.reducerPath]: chatApi.reducer,
   [chatHistoryApi.reducerPath]: chatHistoryApi.reducer,
-  [deepSeekApi.reducerPath]: deepSeekApi.reducer
+  [deepSeekApi.reducerPath]: deepSeekApi.reducer,
 };
 
 // Create an array of all API middleware
