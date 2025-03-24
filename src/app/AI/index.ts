@@ -1,53 +1,65 @@
-import { AI_MODELS, DEFAULT_MODEL, MODEL_SERVICE_MAP } from "./ai.config";
-import { AIServiceFactory } from "./ai.factory";
-import {
-  IAIService,
-  TAIMessage,
-  TAIRequestOptions,
-  TAIResponseFormat,
-  TAIStreamCallbacks,
-} from "./ai.interface";
+import { AIFactory } from "./aifactory/AIFactory";
+import ChatRoutes from "./chat/chat.route";
+import ChatService from "./chat/chat.service";
+import { VoiceService } from "./voice/voice.service";
+import VoiceRoutes from "./voice/voice.route";
+import SpeechService from "./services/speech.service";
+import TTSTestRoutes from "./edgetts/tts-test.route";
 
-class AIService {
-  private getServiceForModel(modelName: string): IAIService {
-    const model = AI_MODELS[modelName] || AI_MODELS[DEFAULT_MODEL];
-    const serviceType = MODEL_SERVICE_MAP[model.modelName];
+// Export all AI components
+export {
+  AIFactory,
+  ChatRoutes,
+  ChatService,
+  VoiceService,
+  VoiceRoutes,
+  SpeechService,
+  TTSTestRoutes,
+};
 
-    return AIServiceFactory.createService(serviceType, model);
+/**
+ * Initialize all AI services
+ * @param server HTTP server instance
+ * @param io Socket.io server instance
+ */
+export const initAIServices = (server: any, io: any) => {
+  // Initialize voice socket if the method exists
+  if (VoiceService.initVoiceSocket) {
+    VoiceService.initVoiceSocket(io);
   }
 
-  async generateResponse(
-    messages: TAIMessage[],
-    modelName: string = DEFAULT_MODEL,
-    options: Partial<TAIRequestOptions> = {}
-  ): Promise<TAIResponseFormat> {
-    const service = this.getServiceForModel(modelName);
+  // Get the server base URL from environment variables or use a default
+  let serverBaseUrl = process.env.SERVER_URL || "";
 
-    return service.generateResponse({
-      messages,
-      ...options,
-    });
+  // If not set in environment, try to construct it from the server settings
+  if (!serverBaseUrl && server) {
+    try {
+      // Try to determine the URL from server settings
+      const address = server.address();
+      if (address) {
+        const port = address.port;
+        // Use localhost for development, but in production this should be configured properly
+        serverBaseUrl = `http://localhost:${port}`;
+        console.log(`Server base URL set to: ${serverBaseUrl}`);
+      }
+    } catch (error) {
+      console.warn(
+        "Could not automatically determine server URL, using relative paths"
+      );
+    }
   }
 
-  async generateStreamingResponse(
-    messages: TAIMessage[],
-    callbacks: TAIStreamCallbacks,
-    modelName: string = DEFAULT_MODEL,
-    options: Partial<TAIRequestOptions> = {}
-  ): Promise<void> {
-    const service = this.getServiceForModel(modelName);
+  // Set the server base URL for audio file references
+  SpeechService.setServerBaseUrl(serverBaseUrl);
 
-    return service.generateStreamingResponse(
-      {
-        messages,
-        ...options,
-        stream: true,
-      },
-      callbacks
-    );
-  }
-}
+  // Load TTS voices in the background
+  SpeechService.loadVoices().catch((err) => {
+    console.error("Failed to load TTS voices:", err);
+  });
 
-export const aiService = new AIService();
-export * from "./ai.interface";
-export * from "./ai.config";
+  // Routes are now mounted in the main routes file
+  // If you need to add any additional AI-specific features,
+  // you can initialize them here
+
+  console.log("AI services initialized");
+};

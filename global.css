@@ -1,0 +1,27 @@
+/* Existing styles... */
+
+/* Stream message animation */
+.stream-message-animation {
+  position: relative;
+  overflow: hidden;
+}
+
+.stream-message-animation::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  width: 100%;
+  background: linear-gradient(90deg, transparent, rgba(99, 102, 241, 0.6), transparent);
+  animation: stream-message-progress 2s infinite;
+}
+
+@keyframes stream-message-progress {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+} 
