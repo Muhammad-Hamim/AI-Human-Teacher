@@ -38,7 +38,7 @@ export function ChatHistory() {
   const handleNewChat = () => {
     navigate("/");
   };
-
+  console.log(chatHistory);
   return (
     <SidebarGroup className="group-data-[collapsible=icon]:hidden p-0 border-l border-gray-800 flex flex-col h-full">
       <div className="sticky top-0 bg-gray-900 text-white p-3 z-10 border-b border-gray-800">

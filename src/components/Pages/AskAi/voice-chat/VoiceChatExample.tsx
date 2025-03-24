@@ -1,4 +1,4 @@
-import  { useState } from "react";
+import { useState } from "react";
 import {
   Card,
   CardHeader,
@@ -38,17 +38,54 @@ function greet() {
 Visit [our documentation](https://example.com) for more information.
 `;
 
-// Custom markdown styles for the example
-const markdownStyles = {
-  pre: "bg-gray-900 p-3 rounded-md overflow-auto my-3 font-mono text-sm",
-  code: "bg-gray-900 px-1 py-0.5 rounded-sm font-mono text-sm text-teal-400",
-  h1: "text-xl font-bold my-4",
-  h2: "text-lg font-bold my-3",
-  h3: "text-md font-bold my-2",
-  ul: "list-disc pl-6 my-2",
-  ol: "list-decimal pl-6 my-2",
-  a: "text-blue-400 hover:underline",
-  blockquote: "border-l-4 border-gray-600 pl-4 italic my-2",
+// Add custom styles for markdown content
+const markdownComponents = {
+  // Code blocks
+  pre: ({ children }: { children: React.ReactNode }) => (
+    <pre className="bg-gray-900 p-3 rounded-md overflow-auto my-3 font-mono text-sm">
+      {children}
+    </pre>
+  ),
+  // Inline code
+  code: ({ children }: { children: React.ReactNode }) => (
+    <code className="bg-gray-900 px-1 py-0.5 rounded-sm font-mono text-sm text-teal-400">
+      {children}
+    </code>
+  ),
+  // Headers
+  h1: ({ children }: { children: React.ReactNode }) => (
+    <h1 className="text-xl font-bold my-4">{children}</h1>
+  ),
+  h2: ({ children }: { children: React.ReactNode }) => (
+    <h2 className="text-lg font-bold my-3">{children}</h2>
+  ),
+  h3: ({ children }: { children: React.ReactNode }) => (
+    <h3 className="text-md font-bold my-2">{children}</h3>
+  ),
+  // Lists
+  ul: ({ children }: { children: React.ReactNode }) => (
+    <ul className="list-disc pl-6 my-2">{children}</ul>
+  ),
+  ol: ({ children }: { children: React.ReactNode }) => (
+    <ol className="list-decimal pl-6 my-2">{children}</ol>
+  ),
+  // Links
+  a: ({ href, children }: { href?: string; children: React.ReactNode }) => (
+    <a
+      href={href}
+      className="text-blue-400 hover:underline"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      {children}
+    </a>
+  ),
+  // Block quotes
+  blockquote: ({ children }: { children: React.ReactNode }) => (
+    <blockquote className="border-l-4 border-gray-600 pl-4 italic my-2">
+      {children}
+    </blockquote>
+  ),
 };
 
 export default function VoiceChatExample() {
@@ -108,20 +145,7 @@ export default function VoiceChatExample() {
                 }`}
               >
                 {message.sender === "ai" ? (
-                  <ReactMarkdown
-                    components={Object.fromEntries(
-                      Object.entries(markdownStyles).map(([key, value]) => [
-                        key,
-                        ({
-                          node,
-                          ...props
-                        }: {
-                          node: any;
-                          [key: string]: any;
-                        }) => <div className={value} {...props} />,
-                      ])
-                    )}
-                  >
+                  <ReactMarkdown components={markdownComponents}>
                     {message.content}
                   </ReactMarkdown>
                 ) : (

@@ -18,8 +18,9 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
-import { useStreamAiResponseMutation } from "@/redux/features/chat/chatApi";
+import { useRequestAiResponseMutation } from "@/redux/features/chat/chatApi";
 import { useParams } from "react-router";
 import { useCreateChatMutation } from "@/redux/features/chatHistory/chatHistoryApi";
 import { useNavigate } from "react-router";
@@ -45,66 +46,69 @@ interface TeacherVoiceModalProps {
 }
 
 // Add custom styles for markdown content
-const markdownStyles = {
+const markdownComponents = {
   // Code blocks
-  pre: (props: any) => (
+  pre: ({ children }: { children: React.ReactNode }) => (
     <pre className="bg-gray-900 p-2 rounded-md overflow-x-auto text-sm my-2">
-      {props.children}
+      {children}
     </pre>
   ),
   // Inline code
-  code: (props: any) => (
+  code: ({ children }: { children: React.ReactNode }) => (
     <code className="bg-gray-900 px-1 py-0.5 rounded text-sm text-teal-400 font-mono">
-      {props.children}
+      {children}
     </code>
   ),
   // Headers
-  h1: (props: any) => (
-    <h1 className="text-xl font-bold my-4">{props.children}</h1>
+  h1: ({ children }: { children: React.ReactNode }) => (
+    <h1 className="text-xl font-bold my-4">{children}</h1>
   ),
-  h2: (props: any) => (
-    <h2 className="text-lg font-bold my-3">{props.children}</h2>
+  h2: ({ children }: { children: React.ReactNode }) => (
+    <h2 className="text-lg font-bold my-3">{children}</h2>
   ),
-  h3: (props: any) => (
-    <h3 className="text-md font-bold my-2">{props.children}</h3>
+  h3: ({ children }: { children: React.ReactNode }) => (
+    <h3 className="text-md font-bold my-2">{children}</h3>
   ),
   // Lists
-  ul: (props: any) => <ul className="list-disc pl-6 my-2">{props.children}</ul>,
-  ol: (props: any) => (
-    <ol className="list-decimal pl-6 my-2">{props.children}</ol>
+  ul: ({ children }: { children: React.ReactNode }) => (
+    <ul className="list-disc pl-6 my-2">{children}</ul>
+  ),
+  ol: ({ children }: { children: React.ReactNode }) => (
+    <ol className="list-decimal pl-6 my-2">{children}</ol>
   ),
   // Links
-  a: (props: any) => (
+  a: ({ href, children }: { href?: string; children: React.ReactNode }) => (
     <a
-      href={props.href}
+      href={href}
       className="text-blue-400 hover:underline"
       target="_blank"
       rel="noopener noreferrer"
     >
-      {props.children}
+      {children}
     </a>
   ),
   // Block quotes
-  blockquote: (props: any) => (
+  blockquote: ({ children }: { children: React.ReactNode }) => (
     <blockquote className="border-l-4 border-gray-600 pl-4 italic my-2">
-      {props.children}
+      {children}
     </blockquote>
   ),
 };
 
 // Utility function to remove markdown syntax for cleaner text-to-speech
-const stripMarkdown = (text: string) => {
-  return text
-    .replace(/\*\*(.*?)\*\*/g, "$1") // Remove bold
-    .replace(/\*(.*?)\*/g, "$1") // Remove italic
-    .replace(/\[(.*?)\]\(.*?\)/g, "$1") // Remove links but keep text
-    .replace(/\n>/g, "\n") // Remove blockquote markers
-    .replace(/`(.*?)`/g, "$1") // Remove inline code markers
-    .replace(/```[\s\S]*?```/g, "") // Remove code blocks
-    .replace(/#/g, "") // Remove heading markers
-    .replace(/\n- /g, "\n") // Remove list markers
-    .replace(/\n\d+\. /g, "\n"); // Remove ordered list markers
-};
+// This function is no longer needed since we're using backend audio
+// const stripMarkdown = (text: string) => {
+//   return text
+//     .replace(/\*\*(.*?)\*\*/g, "$1") // Remove bold
+//     .replace(/\*(.*?)\*/g, "$1") // Remove italic
+//     .replace(/\[(.*?)\]\(.*?\)/g, "$1") // Remove links but keep text
+//     .replace(/\n>/g, "\n") // Remove blockquote markers
+//     .replace(/`(.*?)`/g, "$1") // Remove inline code markers
+//     .replace(/```[\s\S]*?```/g, "") // Remove code blocks
+//     .replace(/#/g, "") // Remove heading markers
+//     .replace(/\n- /g, "\n") // Remove list markers
+//     .replace(/\n\d+\. /g, "\n"); // Remove ordered list markers
+// };
 
 const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
   const { chatId } = useParams<{ chatId: string }>();
@@ -116,11 +120,9 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [speechIntensity, setSpeechIntensity] = useState(0);
   const [createChat] = useCreateChatMutation();
-  const [streamAiResponse] = useStreamAiResponseMutation();
+  const [requestAiResponse] = useRequestAiResponseMutation();
   const recognitionRef = useRef<any>(null);
-  const speechSynthesisRef = useRef<SpeechSynthesisUtterance | null>(null);
-  const [wordIndex, setWordIndex] = useState(0);
-  const responseWordsRef = useRef<string[]>([]);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const [processingQuery, setProcessingQuery] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isBrowserSupported, setIsBrowserSupported] = useState(true);
@@ -172,8 +174,8 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
           }
         }
 
-        if (speechSynthesisRef.current) {
-          window.speechSynthesis.cancel();
+        if (audioRef.current) {
+          audioRef.current.pause();
         }
       };
     }
@@ -249,70 +251,42 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
 
       // Clear previous responses
       setAiResponse("");
-      let fullResponse = "";
 
-      // For preserving markdown newlines and formatting
-      let isInCodeBlock = false;
-
-      // Stream AI response - fixes for handling different response formats
       try {
-        await streamAiResponse({
+        // Use requestAiResponse instead of streamAiResponse
+        const response = await requestAiResponse({
           prompt: query,
           chatId: currentChatId as string,
-          onChunk: (chunk: any) => {
-            // Log the chunk to debug response format
-            console.log("AI response chunk:", chunk);
-
-            let contentChunk = "";
-
-            // Handle different response formats
-            if (typeof chunk === "string") {
-              contentChunk = chunk;
-            } else if (chunk?.message?.content) {
-              contentChunk = chunk.message.content;
-            } else if (chunk?.content) {
-              contentChunk = chunk.content;
-            } else if (chunk?.choices?.[0]?.delta?.content) {
-              // Handle OpenAI-like streaming format
-              contentChunk = chunk.choices[0].delta.content;
-            } else if (typeof chunk === "object") {
-              // Try to extract content from unknown object format
-              contentChunk =
-                chunk?.text ||
-                chunk?.delta?.content ||
-                chunk?.response ||
-                JSON.stringify(chunk);
-            }
-
-            if (contentChunk) {
-              // Check for code block delimiters to preserve formatting
-              if (contentChunk.includes("```")) {
-                isInCodeBlock = !isInCodeBlock;
-              }
-
-              // Append to full response
-              fullResponse += contentChunk;
-
-              // Update the display with proper formatting
-              setAiResponse(fullResponse);
-            }
-          },
         }).unwrap();
 
-        console.log("Full AI response:", fullResponse);
+        console.log("AI response:", response);
 
-        // If we didn't get any response content, show an error
-        if (!fullResponse.trim()) {
+        if (response?.data?.message?.content) {
+          // Set the AI response text
+          setAiResponse(response.data.message.content);
+
+          // Check and log audio availability
+          if (response.data.audio) {
+            console.log("Audio response available:", {
+              hasUrl: !!response.data.audio.url,
+              hasData: !!response.data.audio.data,
+              contentType: response.data.audio.contentType,
+              voiceId: response.data.audio.voiceId,
+            });
+
+            // Play audio if enabled
+            if (audioEnabled) {
+              playResponseAudio(response.data.audio);
+            }
+          } else {
+            console.warn("No audio data in the response");
+          }
+        } else {
           setAiResponse("I couldn't generate a response. Please try again.");
           toast.error("Received empty response from AI");
         }
-
-        // Speak the response if audio is enabled
-        if (audioEnabled && fullResponse.trim()) {
-          speakResponse(fullResponse);
-        }
       } catch (error) {
-        console.error("Error streaming AI response:", error);
+        console.error("Error getting AI response:", error);
         toast.error("Failed to get AI response");
         setAiResponse(
           "Sorry, I encountered an error while processing your request. Please try again."
@@ -324,28 +298,97 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
     }
   };
 
-  // Stop speaking
-  const stopSpeaking = () => {
+  // Play audio from the backend
+  const playResponseAudio = (audio: {
+    url: string;
+    data?: string;
+    contentType?: string;
+  }) => {
+    if (!audioEnabled) return;
+
     try {
-      if (window.speechSynthesis) {
-        // Cancel any pending speech
-        window.speechSynthesis.cancel();
+      // Stop any currently playing audio
+      stopAudio();
 
-        // Add a small delay to make sure the events have time to fire properly
-        setTimeout(() => {
-          // Reset state
-          setIsSpeaking(false);
-          setWordIndex(0);
-        }, 50);
+      // Set speaking state to true
+      setIsSpeaking(true);
 
-        // Only show toast if we were actually speaking
-        if (window.speechSynthesis.speaking || isSpeaking) {
-          toast.info("Stopped speaking");
+      // Create audio source - prioritize base64 data over URL
+      let audioSource = "";
+
+      if (audio.data) {
+        // Use base64 data when available (preferred method)
+        console.log("Using base64 audio data");
+
+        // Clean the base64 string if needed (remove any line breaks or unwanted characters)
+        const cleanedBase64 = audio.data.replace(/[\r\n\s]/g, "");
+
+        // Verify that it's a valid base64 string
+        try {
+          // Check if it's valid base64 by attempting to decode a small sample
+          atob(cleanedBase64.substring(0, 20));
+          audioSource = `data:${
+            audio.contentType || "audio/wav"
+          };base64,${cleanedBase64}`;
+        } catch (e) {
+          console.error("Invalid base64 data:", e);
+          toast.error("Audio data format error");
+          throw new Error("Invalid base64 data");
         }
+      } else if (audio.url) {
+        // Fallback to URL only if data is not available
+        console.log("Falling back to audio URL");
+        audioSource = audio.url.startsWith("http")
+          ? audio.url
+          : `${import.meta.env.VITE_APP_SERVER_URL}${audio.url}`;
+      } else {
+        throw new Error("No audio data or URL provided");
+      }
+
+      // Create audio element
+      audioRef.current = new Audio(audioSource);
+
+      // Set up event handlers
+      audioRef.current.onplay = () => {
+        console.log("Audio started playing");
+        setIsSpeaking(true);
+      };
+
+      audioRef.current.onended = () => {
+        console.log("Audio playback completed");
+        setIsSpeaking(false);
+      };
+
+      audioRef.current.onerror = (event: any) => {
+        console.error("Audio playback error:", event);
+        toast.error("Failed to play audio response");
+        setIsSpeaking(false);
+      };
+
+      // Start playing
+      audioRef.current.play().catch((error) => {
+        console.error("Error playing audio:", error);
+        toast.error("Failed to play audio response");
+        setIsSpeaking(false);
+      });
+    } catch (error) {
+      console.error("Error playing audio:", error);
+      toast.error("Failed to play audio response");
+      setIsSpeaking(false);
+    }
+  };
+
+  // Stop audio playback
+  const stopAudio = () => {
+    try {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+        setIsSpeaking(false);
       }
     } catch (error) {
-      console.error("Error stopping speech:", error);
-      setIsSpeaking(false); // Make sure to reset state even on error
+      console.error("Error stopping audio:", error);
+      setIsSpeaking(false);
     }
   };
 
@@ -353,283 +396,38 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
   const toggleAudio = () => {
     setAudioEnabled(!audioEnabled);
     if (isSpeaking && audioEnabled) {
-      stopSpeaking();
+      stopAudio();
       toast.info("Voice output disabled");
     } else if (!audioEnabled) {
       toast.info("Voice output enabled");
     }
   };
 
-  // Speak response using speech synthesis
-  const speakResponse = (text: string) => {
-    if (!text || !audioEnabled) return;
-
-    try {
-      // Make sure speech synthesis is available
-      if (!window.speechSynthesis) {
-        throw new Error("Speech synthesis not supported in this browser");
-      }
-
-      // First stop any ongoing speech
-      stopSpeaking();
-
-      // Remove markdown syntax for better speech
-      const cleanText = stripMarkdown(text);
-      if (!cleanText.trim()) {
-        console.warn("Empty text after stripping markdown, nothing to speak");
-        return;
-      }
-
-      // Split response into words for highlighting
-      responseWordsRef.current = text.split(/\s+/);
-      setWordIndex(0);
-
-      // Create new utterance
-      speechSynthesisRef.current = new SpeechSynthesisUtterance(cleanText);
-
-      // Set properties for more natural voice
-      speechSynthesisRef.current.rate = 1.0;
-      speechSynthesisRef.current.pitch = 1.0;
-      speechSynthesisRef.current.volume = 1.0;
-
-      // Try to use a more natural-sounding voice if available
-      const voices = window.speechSynthesis.getVoices();
-
-      // First try to find an optimal voice based on quality and language
-      let preferredVoice = voices.find(
-        (voice) =>
-          (voice.name.includes("Google") ||
-            voice.name.includes("Neural") ||
-            voice.name.includes("Premium")) &&
-          voice.lang.startsWith("zh-CN")
-      );
-
-      // Fallback to any English voice if no premium voice is found
-      if (!preferredVoice) {
-        preferredVoice = voices.find((voice) => voice.lang.startsWith("zh-CN"));
-      }
-
-      if (preferredVoice) {
-        console.log(`Using voice: ${preferredVoice.name}`);
-        speechSynthesisRef.current.voice = preferredVoice;
-      } else if (voices.length > 0) {
-        // Just use the first available voice if no English voice is found
-        console.log(`Fallback to default voice: ${voices[0].name}`);
-        speechSynthesisRef.current.voice = voices[0];
-      } else {
-        console.warn("No voices available for speech synthesis");
-      }
-
-      // Chrome has a bug where after about 15 seconds, speech can be cut off
-      // This workaround helps prevent it by periodically "pinging" the synthesis
-      const preventChromeTimeout = setInterval(() => {
-        if (window.speechSynthesis.speaking) {
-          window.speechSynthesis.pause();
-          window.speechSynthesis.resume();
-        } else {
-          clearInterval(preventChromeTimeout);
-        }
-      }, 10000);
-
-      // Set up event handlers
-
-      // Events to track speaking status
-      speechSynthesisRef.current.onstart = () => {
-        setIsSpeaking(true);
-        console.log("Speech started");
-      };
-
-      // Create a single onend handler that handles all cleanup
-      speechSynthesisRef.current.onend = () => {
-        clearInterval(preventChromeTimeout);
-        console.log("Speech completed");
-        setIsSpeaking(false);
-        setWordIndex(0);
-      };
-
-      speechSynthesisRef.current.onpause = () => {
-        console.log("Speech paused");
-      };
-
-      speechSynthesisRef.current.onresume = () => {
-        console.log("Speech resumed");
-      };
-
-      speechSynthesisRef.current.onerror = (event: any) => {
-        console.error("Speech synthesis error:", event);
-        setIsSpeaking(false);
-        clearInterval(preventChromeTimeout);
-
-        // Handle interrupted errors specifically
-        if (event.error === "interrupted") {
-          console.log(
-            "Speech was interrupted, this is often expected when stopping speech manually"
-          );
-          // No need to show an error toast for interruptions as they're usually intentional
-        } else {
-          // For other errors, show a toast
-          toast.error(`Speech synthesis error: ${event.error}`);
-
-          // Attempt to retry speech synthesis once for non-interruption errors
-          if (
-            (event.error === "network" || event.error === "audio-busy") &&
-            audioEnabled
-          ) {
-            setTimeout(() => {
-              console.log("Retrying speech synthesis...");
-              if (speechSynthesisRef.current) {
-                window.speechSynthesis.speak(speechSynthesisRef.current);
-              }
-            }, 1000);
-          }
-        }
-      };
-
-      // Use an interval for word timing
-      let wordCount = 0;
-      const totalWords = responseWordsRef.current.length;
-
-      speechSynthesisRef.current.onboundary = (event) => {
-        if (event.name === "word") {
-          wordCount++;
-          const progress = Math.min(wordCount, totalWords - 1);
-          setWordIndex(progress);
-        }
-      };
-
-      // Start speaking
-      window.speechSynthesis.speak(speechSynthesisRef.current);
-    } catch (error) {
-      console.error("Error with speech synthesis:", error);
-      toast.error("Failed to speak response. Please try again later.");
-      setIsSpeaking(false);
-    }
-  };
-
-  // Initialize speech synthesis
-  useEffect(() => {
-    // Ensure voices are loaded
-    if (window.speechSynthesis) {
-      try {
-        // Get available voices
-        let voices = window.speechSynthesis.getVoices();
-
-        // If voices aren't loaded yet, wait for them
-        if (voices.length === 0) {
-          window.speechSynthesis.addEventListener("voiceschanged", () => {
-            voices = window.speechSynthesis.getVoices();
-            console.log(`Loaded ${voices.length} voices for speech synthesis`);
-          });
-        } else {
-          console.log(`Loaded ${voices.length} voices for speech synthesis`);
-        }
-
-        // Cancel any existing speech synthesis from previous sessions
-        window.speechSynthesis.cancel();
-      } catch (error) {
-        console.error("Error initializing speech synthesis:", error);
-        setAudioEnabled(false);
-        toast.error("Voice output unavailable. Please try again later.");
-      }
-    } else {
-      console.warn("Speech synthesis not supported in this browser");
-      setAudioEnabled(false);
-    }
-
-    // Cleanup on unmount
-    return () => {
-      if (window.speechSynthesis) {
-        try {
-          window.speechSynthesis.cancel();
-        } catch (error) {
-          console.error("Error cancelling speech on unmount:", error);
-        }
-      }
-    };
-  }, []);
-
   // Clean up on unmount
   useEffect(() => {
     return () => {
       stopListening();
-      stopSpeaking();
+      stopAudio();
     };
   }, []);
 
-  // Reset word highlighting when new response arrives
+  // Replace the speakResponse function with stopSpeaking
+  const stopSpeaking = () => {
+    stopAudio();
+  };
+
+  // Initialize speech synthesis (removed: no longer using browser speech synthesis)
   useEffect(() => {
-    if (aiResponse) {
-      responseWordsRef.current = aiResponse.split(/\s+/);
-    }
-  }, [aiResponse]);
+    // Cleanup on unmount
+    return () => {
+      stopListening();
+      stopAudio();
+    };
+  }, []);
 
-  // Word highlighting animation - similar to ChatGPT
-  useEffect(() => {
-    if (isSpeaking && aiResponse && !responseWordsRef.current[wordIndex]) {
-      // If word index is invalid, create a fallback animation
-      const words = aiResponse.split(/\s+/);
-      const interval = setInterval(() => {
-        setWordIndex((prev) => {
-          const next = prev + 1;
-          if (next >= words.length) {
-            clearInterval(interval);
-            return 0;
-          }
-          return next;
-        });
-      }, 220); // Adjust speed as needed
-
-      return () => clearInterval(interval);
-    }
-  }, [isSpeaking, aiResponse, wordIndex]);
-
-  // Render highlighted response text - ChatGPT style with markdown support
+  // Render highlighted response text - without word highlighting since we're using server audio
   const renderHighlightedResponse = () => {
     if (!aiResponse) return null;
-
-    // For speech highlighting we still need plain text
-    const words = aiResponse.split(/\s+/);
-
-    // Function to render markdown with highlighting
-    const renderMarkdownWithHighlighting = () => {
-      if (isSpeaking && wordIndex < words.length) {
-        // Split content into parts - before current word, current word, and after
-        const beforeCurrentWord = words.slice(0, wordIndex).join(" ");
-        const currentWord = words[wordIndex];
-        const afterCurrentWord = words.slice(wordIndex + 1).join(" ");
-
-        return (
-          <>
-            {beforeCurrentWord && (
-              <ReactMarkdown className="inline" components={markdownStyles}>
-                {beforeCurrentWord + " "}
-              </ReactMarkdown>
-            )}
-            {currentWord && (
-              <motion.span
-                className="bg-teal-600/30 text-white dark:text-white rounded px-1 py-0.5"
-                animate={{ scale: [1, 1.05, 1] }}
-                transition={{ duration: 0.2 }}
-              >
-                {currentWord}
-              </motion.span>
-            )}{" "}
-            {afterCurrentWord && (
-              <ReactMarkdown className="inline" components={markdownStyles}>
-                {afterCurrentWord}
-              </ReactMarkdown>
-            )}
-          </>
-        );
-      } else {
-        // Just render markdown normally when not speaking
-        return (
-          <ReactMarkdown components={markdownStyles}>
-            {aiResponse}
-          </ReactMarkdown>
-        );
-      }
-    };
 
     return (
       <motion.div
@@ -638,7 +436,9 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5 }}
       >
-        {renderMarkdownWithHighlighting()}
+        <ReactMarkdown components={markdownComponents}>
+          {aiResponse}
+        </ReactMarkdown>
       </motion.div>
     );
   };
@@ -653,9 +453,14 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
       <DialogContent className="sm:max-w-[700px] bg-gray-950 border-gray-800 text-white p-0 overflow-hidden rounded-xl">
         <DialogHeader className="bg-gray-900 p-4 flex flex-row items-center justify-between border-b border-gray-800">
-          <DialogTitle className="text-xl font-bold text-white">
-            Voice Conversation
-          </DialogTitle>
+          <div>
+            <DialogTitle className="text-xl font-bold text-white">
+              Voice Conversation
+            </DialogTitle>
+            <DialogDescription className="text-gray-400 text-sm">
+              Speak your query and get AI responses with voice playback
+            </DialogDescription>
+          </div>
           <div className="flex items-center gap-2">
             <Button
               variant="ghost"

@@ -1,4 +1,3 @@
-"use client";
 
 import type React from "react";
 import { useState, useRef, useEffect } from "react";
@@ -20,7 +19,7 @@ import {
 } from "@/redux/features/chatHistory/chatHistoryApi";
 import {
   useGetMessagesQuery,
-  useStreamAiResponseMutation,
+useRequestAiResponseMutation
 } from "@/redux/features/chat/chatApi";
 import { FUserId } from "@/types/chat/TChatHistory";
 import TeacherVoiceModal from "./voice-chat/TeacherVoiceModal";
@@ -35,15 +34,12 @@ type FormInputs = {
 const AskAi = () => {
   const { chatId } = useParams<{ chatId: string }>();
   const [rows, setRows] = useState(1);
-  const [isThinking, setIsThinking] = useState(false);
-  const [streamingMessageId, setStreamingMessageId] = useState<string | null>(
-    null
-  );
+  const [isThinking,setIsThinking] = useState(false);
+  const [requestAiResponse] = useRequestAiResponseMutation();
   const [streamedContent, setStreamedContent] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [createChat] = useCreateChatMutation();
-  const [streamAiResponse] = useStreamAiResponseMutation();
   const { refetch: refetchMessages } = useGetMessagesQuery(chatId || "", {
     skip: !chatId,
   });
@@ -98,39 +94,16 @@ const AskAi = () => {
 
         if (currentChatId) {
           // Handle chunks as they come in
-          const handleChunk = (
-            chunk: string | { _id?: string; message?: { content: string } }
-          ) => {
-            // If chunk is a string, just append it to the content
-            if (typeof chunk === "string") {
-              setStreamedContent((prev) => prev + chunk);
-              return;
-            }
-
-            // Handle object type response
-            if (chunk._id && !streamingMessageId) {
-              setStreamingMessageId(chunk._id);
-            }
-
-            // Use optional chaining and nullish coalescing for safe access
-            const content = chunk.message?.content || "";
-            if (content) {
-              setStreamedContent((prev) => prev + content);
-            }
-          };
-
-          // Use streaming API
-          await streamAiResponse({
+          const response = await requestAiResponse({
             prompt: messageContent,
             chatId: currentChatId,
-            onChunk: handleChunk,
-          }).unwrap();
+          });
+          console.log(response);
+          refetchMessages();
         }
 
         // When streaming completes, refetch messages and reset streaming state
         await refetchMessages();
-        setStreamingMessageId(null);
-        setStreamedContent("");
 
         reset({ message: "" });
         setRows(1);
@@ -173,10 +146,7 @@ const AskAi = () => {
         transition={{ duration: 0.5 }}
       >
         <div className="flex-1 overflow-y-auto message-scrollbar p-6 pb-4 bg-gray-900">
-          <ChatMessage
-            streamingMessageId={streamingMessageId}
-            streamedContent={streamedContent}
-          />
+          <ChatMessage/>
           {isThinking && <ThinkingAnimation />}
           <div ref={messagesEndRef} /> {/* Empty div to scroll to */}
         </div>

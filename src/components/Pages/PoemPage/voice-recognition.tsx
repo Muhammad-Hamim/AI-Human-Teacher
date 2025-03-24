@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-"use client";
+
 
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
@@ -63,6 +63,7 @@ export default function VoiceRecognition({ poem }: VoiceRecognitionProps) {
 
       // If final result
       if (result.isFinal) {
+        console.log(transcriptText)
         stopListening();
         evaluateRecitation(transcriptText);
       }
@@ -123,6 +124,7 @@ export default function VoiceRecognition({ poem }: VoiceRecognitionProps) {
 
     // Calculate similarity score
     const score = calculateSimilarity(transcriptText, targetText);
+    console.log(score)
     setAccuracy(score);
 
     // Provide feedback
@@ -137,24 +139,15 @@ export default function VoiceRecognition({ poem }: VoiceRecognitionProps) {
     }
   };
 
-  // Calculate similarity between two strings (simple version)
+  // Calculate similarity between two strings for Chinese text
+
+  // Function to calculate similarity using Levenshtein Distance
   const calculateSimilarity = (str1: string, str2: string): number => {
-    // Remove spaces and punctuation
-    const cleanStr1 = str1.replace(/[^\u4e00-\u9fa5]/g, "");
-    const cleanStr2 = str2.replace(/[^\u4e00-\u9fa5]/g, "");
-
-    // Count matching characters
-    let matches = 0;
-    const minLength = Math.min(cleanStr1.length, cleanStr2.length);
-
-    for (let i = 0; i < minLength; i++) {
-      if (cleanStr1[i] === cleanStr2[i]) {
-        matches++;
-      }
-    }
-
-    // Calculate percentage
-    return Math.round((matches / cleanStr2.length) * 100);
+    // Use Levenshtein to calculate the similarity between two strings
+    const similarityScore = levenshtein.similarity(str1, str2);
+    console.log(similarityScore)
+    // Return the score as a percentage
+    return Math.round(similarityScore * 100);
   };
 
   // Speak text

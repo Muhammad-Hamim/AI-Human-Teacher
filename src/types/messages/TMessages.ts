@@ -1,4 +1,3 @@
-
 export type TUser = {
   senderType: string;
   senderId: string | null;
@@ -7,6 +6,13 @@ export type TUser = {
 export type TContent = {
   contentType: string;
   content: string;
+};
+
+export type TAudio = {
+  url: string;
+  voiceId?: string;
+  data?: string;
+  contentType?: string;
 };
 
 export type TMessage = {
@@ -21,4 +27,5 @@ export type TMessage = {
   isStreaming?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
+  audio?: TAudio;
 };

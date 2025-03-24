@@ -28,12 +28,13 @@ export const chatApi = createApi({
           userId: "641e23bc79b28a2f9c8d4567",
           isDeleted: false,
         };
+        console.log("Message:", message);
         return {
-          url: "/ai/process-message",
+          url: "/ai/chat/process-message",
           method: "POST",
           body: {
             message,
-            modelName: "gpt-3.5-turbo",
+            modelName: deepseekModel,
             options: { temperature: 1.3, maxToken: 1000 },
           },
         };
@@ -75,14 +76,13 @@ export const chatApi = createApi({
 
         try {
           const response = await fetch(
-            "http://localhost:5000/api/v1/ai/stream-message",
+            "http://localhost:5000/api/v1/ai/chat/stream-message",
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify(body),
             }
           );
-
           const reader = response.body?.getReader();
           if (!reader) throw new Error("No response body");
 
