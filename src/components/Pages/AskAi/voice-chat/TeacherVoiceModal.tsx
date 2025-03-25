@@ -261,22 +261,35 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
 
         console.log("AI response:", response);
 
-        if (response?.data?.message?.content) {
+        // The API returns a nested structure with data property
+        const aiData = response as unknown as {
+          data: {
+            message: { content: string };
+            audio?: {
+              url: string;
+              data?: string;
+              contentType?: string;
+              voiceId?: string;
+            };
+          };
+        };
+
+        if (aiData.data?.message?.content) {
           // Set the AI response text
-          setAiResponse(response.data.message.content);
+          setAiResponse(aiData.data.message.content);
 
           // Check and log audio availability
-          if (response.data.audio) {
+          if (aiData.data.audio) {
             console.log("Audio response available:", {
-              hasUrl: !!response.data.audio.url,
-              hasData: !!response.data.audio.data,
-              contentType: response.data.audio.contentType,
-              voiceId: response.data.audio.voiceId,
+              hasUrl: !!aiData.data.audio.url,
+              hasData: !!aiData.data.audio.data,
+              contentType: aiData.data.audio.contentType,
+              voiceId: aiData.data.audio.voiceId,
             });
 
             // Play audio if enabled
             if (audioEnabled) {
-              playResponseAudio(response.data.audio);
+              playResponseAudio(aiData.data.audio);
             }
           } else {
             console.warn("No audio data in the response");
@@ -451,8 +464,8 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
-      <DialogContent className="sm:max-w-[700px] bg-gray-950 border-gray-800 text-white p-0 overflow-hidden rounded-xl">
-        <DialogHeader className="bg-gray-900 p-4 flex flex-row items-center justify-between border-b border-gray-800">
+      <DialogContent className="sm:max-w-[700px] max-h-[90vh] bg-gray-950 border-gray-800 text-white p-0 overflow-hidden rounded-xl flex flex-col">
+        <DialogHeader className="bg-gray-900 p-4 flex flex-row items-center justify-between border-b border-gray-800 flex-shrink-0">
           <div>
             <DialogTitle className="text-xl font-bold text-white">
               Voice Conversation
@@ -486,103 +499,78 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
           </div>
         </DialogHeader>
 
-        <div className="flex flex-col p-6 space-y-6 bg-gray-900">
-          {/* Error message */}
-          {error && (
-            <div className="bg-red-900/20 border border-red-800 text-red-300 p-4 rounded-lg">
-              <p className="text-sm font-medium">{error}</p>
-              <p className="text-xs mt-1 opacity-80">
-                For the best voice experience, please use a supported browser
-                like Chrome, Edge, or Safari.
-              </p>
-            </div>
-          )}
+        {/* Scrollable conversation area */}
+        <div className="flex flex-col bg-gray-900 overflow-y-auto flex-grow">
+          <div className="p-6 space-y-6">
+            {/* Error message */}
+            {error && (
+              <div className="bg-red-900/20 border border-red-800 text-red-300 p-4 rounded-lg">
+                <p className="text-sm font-medium">{error}</p>
+                <p className="text-xs mt-1 opacity-80">
+                  For the best voice experience, please use a supported browser
+                  like Chrome, Edge, or Safari.
+                </p>
+              </div>
+            )}
 
-          {/* Conversation area with transcript and AI response */}
-          <div className="flex-1 flex flex-col gap-4 min-h-[350px]">
-            {/* User's speech area */}
-            <div className="relative h-auto min-h-24">
-              <AnimatePresence>
-                {transcript && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="w-full mb-4"
-                  >
-                    <div className="bg-gray-800 p-4 rounded-xl shadow-md">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="flex h-6 w-6 rounded-full bg-blue-500 items-center justify-center">
-                          <span className="text-xs text-white font-medium">
-                            You
-                          </span>
+            {/* Conversation area with transcript and AI response */}
+            <div className="flex-1 flex flex-col gap-4 min-h-[300px]">
+              {/* User's speech area */}
+              <div className="relative h-auto min-h-24">
+                <AnimatePresence>
+                  {transcript && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="w-full mb-4"
+                    >
+                      <div className="bg-gray-800 p-4 rounded-xl shadow-md">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="flex h-6 w-6 rounded-full bg-blue-500 items-center justify-center">
+                            <span className="text-xs text-white font-medium">
+                              You
+                            </span>
+                          </div>
+                          <p className="text-sm font-medium text-white">You</p>
                         </div>
-                        <p className="text-sm font-medium text-white">You</p>
+                        <p className="text-gray-200">{transcript}</p>
                       </div>
-                      <p className="text-gray-200">{transcript}</p>
-                    </div>
-                  </motion.div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Show waveform when user is speaking */}
+                {isListening && !processingQuery && !isSpeaking && (
+                  <div className="w-full h-12 mt-2">
+                    <SpeechWaveform
+                      isActive={isListening && !processingQuery && !isSpeaking}
+                      intensity={speechIntensity}
+                      color="#3b82f6"
+                      backgroundColor="rgba(30, 41, 59, 0.5)"
+                      mode="user"
+                    />
+                    <AudioAnalyzer
+                      isActive={isListening && !processingQuery && !isSpeaking}
+                      onAnalysis={handleAudioAnalysis}
+                    />
+                  </div>
                 )}
-              </AnimatePresence>
+              </div>
 
-              {/* Show waveform when user is speaking */}
-              {isListening && !processingQuery && !isSpeaking && (
-                <div className="w-full h-12 mt-2">
-                  <SpeechWaveform
-                    isActive={isListening && !processingQuery && !isSpeaking}
-                    intensity={speechIntensity}
-                    color="#3b82f6"
-                    backgroundColor="rgba(30, 41, 59, 0.5)"
-                    mode="user"
-                  />
-                  <AudioAnalyzer
-                    isActive={isListening && !processingQuery && !isSpeaking}
-                    onAnalysis={handleAudioAnalysis}
-                  />
-                </div>
-              )}
-            </div>
-
-            {/* AI's response area */}
-            <div className="relative h-auto min-h-32">
-              <AnimatePresence>
-                {/* Processing indicator (ChatGPT style) */}
-                {processingQuery && !aiResponse && (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="w-full mb-4"
-                  >
-                    <div className="bg-gray-800 p-4 rounded-xl shadow-md">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="flex h-6 w-6 rounded-full bg-teal-500 items-center justify-center">
-                          <span className="text-xs text-white font-medium">
-                            AI
-                          </span>
-                        </div>
-                        <p className="text-sm font-medium text-white">
-                          Assistant
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Loader2 className="h-5 w-5 text-teal-500 animate-spin" />
-                        <p className="text-gray-400">Thinking...</p>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-
-                {/* AI response */}
-                {aiResponse && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="w-full mb-4"
-                  >
-                    <div className="bg-gray-800 p-4 rounded-xl shadow-md relative">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
+              {/* AI's response area */}
+              <div className="relative h-auto">
+                <AnimatePresence>
+                  {/* Processing indicator (ChatGPT style) */}
+                  {processingQuery && !aiResponse && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="w-full mb-4"
+                    >
+                      <div className="bg-gray-800 p-4 rounded-xl shadow-md">
+                        <div className="flex items-center gap-2 mb-2">
                           <div className="flex h-6 w-6 rounded-full bg-teal-500 items-center justify-center">
                             <span className="text-xs text-white font-medium">
                               AI
@@ -592,56 +580,89 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
                             Assistant
                           </p>
                         </div>
-
-                        {/* Stop speaking button */}
-                        {isSpeaking && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 px-2 text-xs flex items-center gap-1 text-gray-400 hover:text-white"
-                            onClick={stopSpeaking}
-                          >
-                            <StopCircle className="h-3 w-3" />
-                            <span>Stop speaking</span>
-                          </Button>
-                        )}
+                        <div className="flex items-center gap-2">
+                          <Loader2 className="h-5 w-5 text-teal-500 animate-spin" />
+                          <p className="text-gray-400">Thinking...</p>
+                        </div>
                       </div>
-                      {renderHighlightedResponse()}
-                    </div>
-                  </motion.div>
+                    </motion.div>
+                  )}
+
+                  {/* AI response */}
+                  {aiResponse && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="w-full mb-4"
+                    >
+                      <div className="bg-gray-800 h-48 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent p-4 rounded-xl shadow-md relative">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <div className="flex h-6 w-6 rounded-full bg-teal-500 items-center justify-center">
+                              <span className="text-xs text-white font-medium">
+                                AI
+                              </span>
+                            </div>
+                            <p className="text-sm font-medium text-white">
+                              Assistant
+                            </p>
+                          </div>
+
+                          {/* Stop speaking button */}
+                          {isSpeaking && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 px-2 text-xs flex items-center gap-1 text-gray-400 hover:text-white"
+                              onClick={stopSpeaking}
+                            >
+                              <StopCircle className="h-3 w-3" />
+                              <span>Stop speaking</span>
+                            </Button>
+                          )}
+                        </div>
+                        <div className="max-h-[50vh] ">
+                          {renderHighlightedResponse()}
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* AI waveform (ChatGPT style) */}
+                {isSpeaking && (
+                  <div className="w-full h-12 mt-2">
+                    <SpeechWaveform
+                      isActive={isSpeaking}
+                      intensity={0.5}
+                      color="#10b981"
+                      backgroundColor="rgba(17, 24, 39, 0.5)"
+                      mode="ai"
+                    />
+                  </div>
                 )}
-              </AnimatePresence>
 
-              {/* AI waveform (ChatGPT style) */}
-              {isSpeaking && (
-                <div className="w-full h-12 mt-2">
-                  <SpeechWaveform
-                    isActive={isSpeaking}
-                    intensity={0.5}
-                    color="#10b981"
-                    backgroundColor="rgba(17, 24, 39, 0.5)"
-                    mode="ai"
-                  />
-                </div>
-              )}
-
-              {/* Loading indicator */}
-              {processingQuery && !aiResponse && (
-                <div className="w-full h-12 mt-2">
-                  <SpeechWaveform
-                    isActive={true}
-                    intensity={0.5}
-                    color="#8b5cf6"
-                    backgroundColor="rgba(17, 24, 39, 0.5)"
-                    mode="loading"
-                  />
-                </div>
-              )}
+                {/* Loading indicator */}
+                {processingQuery && !aiResponse && (
+                  <div className="w-full h-12 mt-2">
+                    <SpeechWaveform
+                      isActive={true}
+                      intensity={0.5}
+                      color="#8b5cf6"
+                      backgroundColor="rgba(17, 24, 39, 0.5)"
+                      mode="loading"
+                    />
+                  </div>
+                )}
+              </div>
             </div>
           </div>
+        </div>
 
+        {/* Fixed controls section at bottom */}
+        <div className="bg-gray-900 p-6 pt-2 border-t border-gray-800 flex-shrink-0">
           {/* Controls */}
-          <div className="flex justify-center space-y-4 mt-4">
+          <div className="flex justify-center">
             <div className="flex items-center gap-4">
               <motion.div
                 whileHover={{ scale: 1.05 }}
@@ -670,7 +691,7 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
             </div>
           </div>
 
-          <div className="text-center text-xs text-gray-400 mt-2">
+          <div className="text-center text-xs text-gray-400 mt-4">
             {isListening &&
               !processingQuery &&
               !isSpeaking &&

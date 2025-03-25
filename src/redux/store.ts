@@ -7,12 +7,15 @@ import { deepSeekApi } from "./features/interactivePoem/deepSeekApi";
 import userProgressReducer from "./features/interactivePoem/userProgressSlice";
 import themeReducer from "./features/interactivePoem/themeSlice";
 import voiceChatReducer from "./features/voiceChat/voiceChatSlice";
+import poemVideoReducer from "./features/poemVideo/poemVideoSlice";
+import { poemVideoApi } from "./features/poemVideo/poemVideoApi";
 
 // Create an object with all API reducers
 const apiReducers = {
   [chatApi.reducerPath]: chatApi.reducer,
   [chatHistoryApi.reducerPath]: chatHistoryApi.reducer,
   [deepSeekApi.reducerPath]: deepSeekApi.reducer,
+  [poemVideoApi.reducerPath]: poemVideoApi.reducer,
 };
 
 // Create an array of all API middleware
@@ -20,6 +23,7 @@ const apiMiddleware = [
   chatApi.middleware,
   chatHistoryApi.middleware,
   deepSeekApi.middleware,
+  poemVideoApi.middleware,
 ];
 
 export const store = configureStore({
@@ -28,6 +32,7 @@ export const store = configureStore({
     chatHistory: chatHistoryReducer,
     userProgress: userProgressReducer,
     theme: themeReducer,
+    poemVideo: poemVideoReducer,
     ...apiReducers,
     voiceChat: voiceChatReducer,
   },

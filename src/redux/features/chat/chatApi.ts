@@ -1,5 +1,5 @@
 import { TMessage } from "@/types/messages/TMessages";
-import { deepseekModel } from "@/utils/aiModelNameConst";
+import { deepseekModel, qwen2Model } from "@/utils/aiModelNameConst";
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 
 export const chatApi = createApi({
@@ -34,7 +34,7 @@ export const chatApi = createApi({
           method: "POST",
           body: {
             message,
-            modelName: deepseekModel,
+            modelName: qwen2Model,
             options: { temperature: 1.3, maxToken: 1000 },
           },
         };
