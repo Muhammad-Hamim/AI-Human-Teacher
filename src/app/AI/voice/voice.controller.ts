@@ -52,18 +52,20 @@ const processVoiceTranscript = catchAsync(
       // Get the server base URL for audio references
       const serverBaseUrl = SpeechService.getServerBaseUrl();
 
+      // Add null check for _id before using it
+      const messageId = response._id ? response._id.toString() : undefined;
+
       // Generate the audio URL using ServerConfig
-      const audioUrl = ServerConfig.getAudioUrl(
-        response._id.toString(),
-        serverBaseUrl
-      );
+      const audioUrl = response._id
+        ? ServerConfig.getAudioUrl(response._id.toString(), serverBaseUrl)
+        : undefined;
 
       // Return the AI response
       res.status(httpStatus.OK).json({
         success: true,
         message: "Voice transcript processed successfully",
         data: {
-          messageId: response._id,
+          messageId: messageId,
           text: response.message.content,
           audioUrl: audioUrl, // Use the full URL with server base
         },

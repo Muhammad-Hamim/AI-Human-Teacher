@@ -252,3 +252,109 @@ The implementation uses a hybrid approach:
 - WebRTC for peer connection and audio transmission
 - Web Speech API for client-side voice processing
 - The same AI backend handles both text and voice requests
+
+## Models
+
+The application now uses Qwen2.5-VL 72B Instruct as the default AI model. This model provides better text generation capabilities and is used through the OpenRouter API.
+
+The following environment variables are used for the Qwen2 model:
+
+```
+QWEN2_5_VL_72B_API_KEY=your-api-key-here
+QWEN2_5_VL_72B_MODEL_NAME=qwen/qwen2.5-vl-72b-instruct:free
+```
+
+The application still supports OpenAI and DeepSeek models, which can be selected by including "gpt" or "deepseek" in the model name parameter.
+
+## Testing
+
+You can test the Qwen2 model using the provided test script:
+
+```
+test-qwen.bat
+```
+
+## Training the AI with the Poem Database
+
+This application includes functionality to train the AI with your poem database, allowing it to respond with detailed information about poems, authors, and dynasties.
+
+### Setting Up OpenRouter API Integration
+
+1. Create an account on [OpenRouter](https://openrouter.ai/) if you don't already have one
+2. Get your API key from the OpenRouter dashboard
+3. Add your OpenRouter API key to the `.env` file:
+
+```
+AI_API_KEY=your_api_key_here
+QWEN2_API_KEY=your_api_key_here
+```
+
+### Training Process
+
+1. Make sure your MongoDB database contains poem data with the correct schema (see `src/app/Models/poem/poem.interface.ts` for the schema)
+2. Run the training script:
+
+```
+test-poetry-train.bat
+```
+
+The training script will:
+
+- Connect to your MongoDB database
+- Index the poem collection for efficient searching
+- Create special indexes for quick lookups by title, author, and dynasty
+- Generate a context file that the AI can use to understand the poem database
+
+### Testing the AI
+
+Once the training is complete, you can test if the AI can access your poem database:
+
+1. Run the single poem test script:
+
+```
+test-single-poem.bat
+```
+
+2. This will randomly select a poem from your database and verify that it's accessible to the AI
+
+3. Start the server and test the AI by asking questions about poems:
+
+```
+npm run dev
+```
+
+### Example Questions for Testing
+
+Once the server is running, you can test the AI's knowledge by asking questions like:
+
+- "Can you tell me about a famous Tang dynasty poem?"
+- "Who is Li Bai and what poems did he write?"
+- "Explain the meaning of [poem title]"
+- "Can you translate [Chinese poem line] into English?"
+- "What is the historical context of [poem title]?"
+
+### How It Works
+
+The AI has been configured to:
+
+1. Understand when a query is related to Chinese poetry
+2. Search the poem database for relevant content
+3. Format the poem data in a way that helps the AI provide accurate responses
+4. Include detailed information about the poem's meaning, historical context, and cultural significance
+
+The system uses a combination of:
+
+- MongoDB text indexing for efficient searches
+- Natural language processing to identify poetry-related queries
+- Context injection to provide the AI with relevant poem data
+- Custom system prompts to guide the AI's responses
+
+### Adding More Poems
+
+To add more poems to the database, you can create API endpoints or database scripts. Each poem should follow the schema defined in `src/app/Models/poem/poem.interface.ts`.
+
+After adding new poems, run the training script again to update the AI's knowledge:
+
+```
+test-poetry-train.bat
+```

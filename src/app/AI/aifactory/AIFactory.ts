@@ -2,6 +2,11 @@ import { OpenAI } from "openai";
 import config from "../../../app/config";
 import mongoose, { Document } from "mongoose";
 import { systemPrompt } from "../../utils/systemPrompt";
+import { TPoem } from "../../Models/poem/poem.interface";
+import {
+  generatePoemDatabaseContext,
+  getAllPoemSummaries,
+} from "../../utils/poemTraining";
 
 // Type definitions for messages
 export type TUser = {
@@ -65,6 +70,7 @@ abstract class BaseAIModel implements IAIModel {
   protected client: OpenAI;
   protected model: string;
   protected messageModel: mongoose.Model<TMessageDocument>;
+  protected poemModel: mongoose.Model<TPoem & Document>;
 
   constructor(apiKey: string, model: string, baseURL?: string) {
     this.client = new OpenAI({
@@ -80,6 +86,48 @@ abstract class BaseAIModel implements IAIModel {
       // Since we can't directly import the model (it might not be registered yet),
       // we'll register it when needed in the actual service
       this.messageModel = mongoose.model<TMessageDocument>("Message");
+    }
+
+    // Get the Poem model - try multiple collection names
+    this.getPoemModel();
+  }
+
+  // Move the poem model initialization to a separate method without async
+  private getPoemModel(): void {
+    try {
+      // Default to "Poem" if no collection found
+      this.poemModel = mongoose.model<TPoem & Document>("Poem");
+      console.log("Using default Poem model");
+    } catch (error) {
+      console.error("Error finding poem collections:", error);
+
+      // Try with lowercase collection name as MongoDB might be case-sensitive
+      try {
+        this.poemModel = mongoose.model<TPoem & Document>("poems");
+        console.log("Successfully loaded poems model (lowercase)");
+      } catch (innerError) {
+        console.error("Error loading poem model:", error);
+        console.error("Error loading poems model:", innerError);
+
+        // Get all model names for debugging
+        console.log("Available models:", Object.keys(mongoose.models));
+
+        // Last resort - use any available poem model
+        const poemModelName = Object.keys(mongoose.models).find((name) =>
+          name.toLowerCase().includes("poem")
+        );
+
+        if (poemModelName) {
+          console.log(`Using found poem model: ${poemModelName}`);
+          this.poemModel = mongoose.model(poemModelName) as mongoose.Model<
+            TPoem & Document
+          >;
+        } else {
+          // If no model is found, create a placeholder to prevent errors
+          console.log("No poem model found, creating placeholder model");
+          this.poemModel = mongoose.model<TPoem & Document>("Poem");
+        }
+      }
     }
   }
 
@@ -103,8 +151,402 @@ abstract class BaseAIModel implements IAIModel {
       .lean();
   }
 
+  // Get relevant poem data based on user query
+  protected async getRelevantPoemData(userMessage: string): Promise<string> {
+    // Parse the user message to determine if it's a poem query
+    const isPoemQuery = this.isPoemRelatedQuery(userMessage);
+
+    console.log(
+      `Checking if message is poem-related: "${userMessage.substring(0, 50)}${userMessage.length > 50 ? "..." : ""}"`
+    );
+    console.log(`Is poem query: ${isPoemQuery}`);
+
+    if (!isPoemQuery) {
+      return "";
+    }
+
+    // Check if the query is about the database contents
+    const isDatabaseQuery =
+      userMessage.toLowerCase().includes("database") ||
+      userMessage.toLowerCase().includes("how many") ||
+      userMessage.toLowerCase().includes("list") ||
+      userMessage.toLowerCase().includes("what poems");
+
+    if (isDatabaseQuery) {
+      console.log("Processing database contents query");
+      return await this.getAllPoemSummaries();
+    }
+
+    // Check if the query is requesting a random poem
+    const isRandomPoemRequest =
+      userMessage.toLowerCase().includes("random poem") ||
+      (userMessage.toLowerCase().includes("random") &&
+        userMessage.toLowerCase().includes("poem")) ||
+      (userMessage.toLowerCase().includes("any") &&
+        userMessage.toLowerCase().includes("poem"));
+
+    if (isRandomPoemRequest) {
+      console.log("Processing random poem request");
+      try {
+        // Get a random poem from the database
+        const count = await this.poemModel.countDocuments();
+        if (count === 0) {
+          return "No poems found in the database.";
+        }
+
+        // Get a random poem using aggregation with $sample
+        const randomPoems = await this.poemModel.aggregate([
+          { $sample: { size: 1 } },
+        ]);
+
+        if (randomPoems.length === 0) {
+          return "Failed to retrieve a random poem.";
+        }
+
+        const randomPoem = randomPoems[0];
+        console.log(
+          `Retrieved random poem: "${randomPoem.title}" by ${randomPoem.author}`
+        );
+
+        // Format the poem data
+        let poemContext = "RANDOM POEM FROM DATABASE:\n\n";
+        poemContext += `Title: ${randomPoem.title}\n`;
+        poemContext += `Author: ${randomPoem.author}\n`;
+        poemContext += `Dynasty: ${randomPoem.dynasty}\n`;
+        poemContext += "Lines:\n";
+
+        randomPoem.lines.forEach((line, lineIndex) => {
+          poemContext += `  ${lineIndex + 1}. ${line.chinese}\n`;
+          poemContext += `     Pinyin: ${line.pinyin}\n`;
+          poemContext += `     Translation: ${line.translation}\n`;
+          if (line.explanation) {
+            poemContext += `     Line Explanation: ${line.explanation}\n`;
+          }
+        });
+
+        poemContext += `Explanation: ${randomPoem.explanation}\n`;
+        poemContext += `Historical & Cultural Context: ${randomPoem.historicalCulturalContext}\n\n`;
+
+        // Always include JSON representation for random poem requests
+        poemContext += "JSON FORMAT:\n```json\n";
+        poemContext += JSON.stringify(randomPoem, null, 2);
+        poemContext += "\n```\n\n";
+        poemContext +=
+          "INSTRUCTION: If the user asked for JSON format, provide the data exactly as shown in the JSON FORMAT section above.";
+
+        return poemContext;
+      } catch (error) {
+        console.error("Error retrieving random poem:", error);
+        return "Error retrieving random poem from database.";
+      }
+    }
+
+    // Check if this is a specific poem title request
+    let specificPoemTitle = null;
+
+    // Look for title pattern in request
+    const titleMatch =
+      userMessage.match(/title\s+["'](.+?)["']/i) ||
+      userMessage.match(/title\s+[「」""《》](.+?)[」」""《》]/i) ||
+      userMessage.match(/poem\s+["'](.+?)["']/i) ||
+      userMessage.match(/poem\s+[「」""《》](.+?)[」」""《》]/i);
+
+    if (titleMatch && titleMatch[1]) {
+      specificPoemTitle = titleMatch[1].trim();
+      console.log(
+        `Detected specific poem title request: "${specificPoemTitle}"`
+      );
+
+      try {
+        // Try to find the exact poem by title
+        const exactPoem = await this.poemModel
+          .findOne({
+            title: specificPoemTitle,
+          })
+          .lean();
+
+        if (exactPoem) {
+          console.log(
+            `Found exact poem: "${exactPoem.title}" by ${exactPoem.author}`
+          );
+
+          // Format just this specific poem data for context
+          let poemContext = "POEM DATABASE CONTEXT:\n\n";
+          poemContext += `Title: ${exactPoem.title}\n`;
+          poemContext += `Author: ${exactPoem.author}\n`;
+          poemContext += `Dynasty: ${exactPoem.dynasty}\n`;
+          poemContext += "Lines:\n";
+
+          exactPoem.lines.forEach((line, lineIndex) => {
+            poemContext += `  ${lineIndex + 1}. ${line.chinese}\n`;
+            poemContext += `     Pinyin: ${line.pinyin}\n`;
+            poemContext += `     Translation: ${line.translation}\n`;
+            if (line.explanation) {
+              poemContext += `     Line Explanation: ${line.explanation}\n`;
+            }
+          });
+
+          poemContext += `Explanation: ${exactPoem.explanation}\n`;
+          poemContext += `Historical & Cultural Context: ${exactPoem.historicalCulturalContext}\n\n`;
+
+          // If JSON format was requested, add the JSON representation
+          if (
+            userMessage.toLowerCase().includes("json") ||
+            userMessage.toLowerCase().includes("format") ||
+            userMessage.toLowerCase().includes("stored")
+          ) {
+            poemContext += "JSON FORMAT:\n```json\n";
+            poemContext += JSON.stringify(exactPoem, null, 2);
+            poemContext += "\n```\n\n";
+            poemContext +=
+              "INSTRUCTION: When asked for JSON format, provide the data exactly as shown in the JSON FORMAT section above.";
+          }
+
+          console.log(
+            `Generated specific poem context of length: ${poemContext.length}`
+          );
+          return poemContext;
+        } else {
+          console.log(`No poem found with exact title: "${specificPoemTitle}"`);
+        }
+      } catch (error) {
+        console.error(
+          `Error searching for specific poem "${specificPoemTitle}":`,
+          error
+        );
+      }
+    }
+
+    // If no exact match or not a specific title request, proceed with keyword search
+    try {
+      // Extract potential keywords from user message
+      const keywords = this.extractKeywords(userMessage);
+      console.log("Extracted keywords:", keywords);
+
+      // Create a regex search condition for poem title, author, or dynasty
+      const searchConditions = keywords.map((keyword) => ({
+        $or: [
+          { title: { $regex: keyword, $options: "i" } },
+          { author: { $regex: keyword, $options: "i" } },
+          { dynasty: { $regex: keyword, $options: "i" } },
+          { "lines.chinese": { $regex: keyword, $options: "i" } },
+          { explanation: { $regex: keyword, $options: "i" } },
+        ],
+      }));
+
+      console.log(
+        "Searching poems with conditions:",
+        searchConditions.length > 0
+          ? JSON.stringify(searchConditions, null, 2)
+          : "No specific conditions (retrieving samples)"
+      );
+
+      // Find relevant poems (limit to prevent context overflow)
+      const poems = await this.poemModel
+        .find(
+          searchConditions.length > 0 ? { $or: searchConditions } : {},
+          null,
+          { limit: 3 }
+        )
+        .lean();
+
+      console.log(`Found ${poems.length} matching poems in database`);
+
+      if (poems.length === 0) {
+        console.log(
+          "No specific poems found matching the query, returning general summary"
+        );
+        return await this.getAllPoemSummaries();
+      }
+
+      // Format poem data for context
+      let poemContext = "POEM DATABASE CONTEXT:\n\n";
+
+      poems.forEach((poem, index) => {
+        console.log(`Including poem: ${poem.title} by ${poem.author}`);
+        poemContext += `POEM ${index + 1}:\n`;
+        poemContext += `Title: ${poem.title}\n`;
+        poemContext += `Author: ${poem.author}\n`;
+        poemContext += `Dynasty: ${poem.dynasty}\n`;
+        poemContext += "Lines:\n";
+
+        poem.lines.forEach((line, lineIndex) => {
+          poemContext += `  ${lineIndex + 1}. ${line.chinese}\n`;
+          poemContext += `     Pinyin: ${line.pinyin}\n`;
+          poemContext += `     Translation: ${line.translation}\n`;
+          if (line.explanation) {
+            poemContext += `     Line Explanation: ${line.explanation}\n`;
+          }
+        });
+
+        poemContext += `Explanation: ${poem.explanation}\n`;
+        poemContext += `Historical & Cultural Context: ${poem.historicalCulturalContext}\n\n`;
+      });
+
+      console.log(`Generated poem context of length: ${poemContext.length}`);
+      return poemContext;
+    } catch (error) {
+      console.error("Error fetching poem data:", error);
+      return "";
+    }
+  }
+
+  // Check if a message is likely to be a poem-related query
+  private isPoemRelatedQuery(message: string): boolean {
+    // Match requests for JSON format
+    if (
+      (message.toLowerCase().includes("json") ||
+        message.toLowerCase().includes("format") ||
+        message.toLowerCase().includes("data structure") ||
+        message.toLowerCase().includes("raw data")) &&
+      (message.toLowerCase().includes("poem") ||
+        message.toLowerCase().includes("title"))
+    ) {
+      console.log("Detected request for poem data in JSON format");
+      return true;
+    }
+
+    // Match queries about database contents
+    if (
+      message.toLowerCase().includes("database") &&
+      (message.toLowerCase().includes("poem") ||
+        message.toLowerCase().includes("many") ||
+        message.toLowerCase().includes("how") ||
+        message.toLowerCase().includes("what") ||
+        message.toLowerCase().includes("list") ||
+        message.toLowerCase().includes("title") ||
+        message.toLowerCase().includes("collection"))
+    ) {
+      console.log("Detected database inquiry about poems");
+      return true;
+    }
+
+    // Original poem keywords check
+    const poemKeywords = [
+      "poem",
+      "poetry",
+      "verse",
+      "stanza",
+      "couplet",
+      "quatrain",
+      "author",
+      "poet",
+      "dynasty",
+      "chinese",
+      "ancient",
+      "classical",
+      "tang",
+      "song",
+      "ming",
+      "qing",
+      "yuan",
+      "han",
+      "jin",
+      "诗",
+      "唐诗",
+      "宋词",
+      "元曲",
+      "诗人",
+      "作者",
+      "朝代",
+      "Li Bai",
+      "李白",
+      "Du Fu",
+      "杜甫",
+      "Wang Wei",
+      "王维",
+      "Meng Haoran",
+      "孟浩然",
+      "Bai Juyi",
+      "白居易",
+    ];
+
+    const lowercaseMessage = message.toLowerCase();
+    return poemKeywords.some((keyword) =>
+      lowercaseMessage.includes(keyword.toLowerCase())
+    );
+  }
+
+  // Extract potential keywords from a message
+  private extractKeywords(message: string): string[] {
+    // Remove common words and punctuation
+    const cleanedMessage = message
+      .replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, " ")
+      .replace(/\s{2,}/g, " ")
+      .toLowerCase();
+
+    // Split into words
+    const words = cleanedMessage.split(" ");
+
+    // Filter out common words
+    const commonWords = [
+      "the",
+      "a",
+      "an",
+      "and",
+      "or",
+      "but",
+      "in",
+      "on",
+      "at",
+      "to",
+      "for",
+      "with",
+      "about",
+      "is",
+      "are",
+      "was",
+      "were",
+      "be",
+      "been",
+      "being",
+      "by",
+      "from",
+      "that",
+      "this",
+      "these",
+      "those",
+      "what",
+      "which",
+      "who",
+      "whom",
+      "whose",
+      "when",
+      "where",
+      "why",
+      "how",
+      "can",
+      "could",
+      "do",
+      "does",
+      "did",
+      "have",
+      "has",
+      "had",
+      "i",
+      "you",
+      "he",
+      "she",
+      "it",
+      "we",
+      "they",
+      "me",
+      "him",
+      "her",
+      "us",
+      "them",
+    ];
+
+    // Return words that are not common and are at least 3 characters
+    return words.filter(
+      (word) => !commonWords.includes(word) && word.length >= 3
+    );
+  }
+
   // Convert TMessage array to AIMessage array for API
-  protected conversationToMessages(history: TMessage[]): AIMessage[] {
+  protected async conversationToMessages(
+    history: TMessage[]
+  ): Promise<AIMessage[]> {
     // Start with a system message
     const messages: AIMessage[] = [
       {
@@ -112,6 +554,37 @@ abstract class BaseAIModel implements IAIModel {
         content: systemPrompt,
       },
     ];
+
+    // Always include the poem database context if available
+    const poemDatabaseContext = AIFactory.getPoemDatabaseContext();
+    if (poemDatabaseContext) {
+      console.log("Adding poem database context to conversation:");
+      console.log("Context length:", poemDatabaseContext.length);
+      messages.push({
+        role: "system",
+        content: poemDatabaseContext,
+      });
+    } else {
+      console.warn("No poem database context available for this conversation");
+    }
+
+    // Get poem context based on the most recent user message
+    const lastUserMessage =
+      history.find((msg) => !msg.isAIResponse)?.message?.content || "";
+    const poemContext = await this.getRelevantPoemData(lastUserMessage);
+
+    // Add poem context if available
+    if (poemContext) {
+      console.log("Adding specific poem context based on query:");
+      console.log("Query:", lastUserMessage);
+      console.log("Context length:", poemContext.length);
+      messages.push({
+        role: "system",
+        content: poemContext,
+      });
+    } else {
+      console.log("No specific poem context found for query:", lastUserMessage);
+    }
 
     // Add messages in chronological order (oldest first)
     history.reverse().forEach((msg) => {
@@ -134,8 +607,8 @@ abstract class BaseAIModel implements IAIModel {
     // 2. Get conversation history
     const history = await this.getConversationHistory(messageData.chatId);
 
-    // 3. Convert to AI messages format
-    const messages = this.conversationToMessages(history);
+    // 3. Convert to AI messages format with poem context
+    const messages = await this.conversationToMessages(history);
 
     // 4. Generate AI response
     const aiResponseContent = await this.generateCompletion(messages);
@@ -172,8 +645,8 @@ abstract class BaseAIModel implements IAIModel {
       // 2. Get conversation history
       const history = await this.getConversationHistory(messageData.chatId);
 
-      // 3. Convert to AI messages format
-      const messages = this.conversationToMessages(history);
+      // 3. Convert to AI messages format with poem context
+      const messages = await this.conversationToMessages(history);
 
       // 4. Create initial AI response message with streaming flag
       const aiResponseData: Omit<TMessage, "_id"> = {
@@ -284,6 +757,122 @@ abstract class BaseAIModel implements IAIModel {
       }
     }
   }
+
+  // Get all poems from the database when no specific query is found
+  // but we want to provide information about available poems
+  protected async getAllPoemSummaries(): Promise<string> {
+    try {
+      // Try to use the new getAllPoemSummaries function from poemTraining.ts
+      const poemSummaries = await getAllPoemSummaries();
+
+      console.log(
+        `Found ${poemSummaries.length} poems for summary using new database function`
+      );
+
+      if (poemSummaries.length === 0) {
+        // Fall back to old method if the new one returns empty results
+        return this.fallbackGetAllPoemSummaries();
+      }
+
+      // Format as a list for the AI to reference
+      let poemList = "POEM DATABASE CONTENTS:\n\n";
+      poemList += `I have access to ${poemSummaries.length} Chinese poems. Here are some examples:\n\n`;
+
+      // Group by dynasty
+      const poemsByDynasty: Record<
+        string,
+        { title: string; author: string }[]
+      > = {};
+
+      poemSummaries.forEach((poem) => {
+        const dynasty = poem.dynasty || "Unknown Dynasty";
+        if (!poemsByDynasty[dynasty]) {
+          poemsByDynasty[dynasty] = [];
+        }
+        poemsByDynasty[dynasty].push({
+          title: poem.title || "Untitled",
+          author: poem.author || "Unknown Author",
+        });
+      });
+
+      // List poems by dynasty, showing up to 5 poems per dynasty
+      for (const [dynasty, dynastyPoems] of Object.entries(poemsByDynasty)) {
+        poemList += `${dynasty} (${dynastyPoems.length} poems):\n`;
+        dynastyPoems.slice(0, 5).forEach((poem) => {
+          poemList += `- "${poem.title}" by ${poem.author}\n`;
+        });
+        if (dynastyPoems.length > 5) {
+          poemList += `  (and ${dynastyPoems.length - 5} more...)\n`;
+        }
+        poemList += "\n";
+      }
+
+      return poemList;
+    } catch (error) {
+      console.error("Error getting all poem summaries:", error);
+      return this.fallbackGetAllPoemSummaries();
+    }
+  }
+
+  // Fallback method to get poem summaries directly from the model
+  private async fallbackGetAllPoemSummaries(): Promise<string> {
+    try {
+      // Try to get all poems with a limit to prevent context explosion
+      console.log(
+        "Using fallback method to get summary of all poems in database"
+      );
+
+      const poems = await this.poemModel
+        .find({}, "title author dynasty")
+        .limit(20)
+        .lean();
+
+      console.log(
+        `Found ${poems.length} poems for summary with fallback method`
+      );
+
+      if (poems.length === 0) {
+        return "There are no poems in the database.";
+      }
+
+      // Format as a list for the AI to reference
+      let poemList = "POEM DATABASE CONTENTS:\n\n";
+      poemList += `I have access to ${poems.length} Chinese poems. Here are the titles:\n\n`;
+
+      // Group by dynasty
+      const poemsByDynasty: Record<
+        string,
+        { title: string; author: string }[]
+      > = {};
+
+      poems.forEach((poem) => {
+        if (!poemsByDynasty[poem.dynasty]) {
+          poemsByDynasty[poem.dynasty] = [];
+        }
+        poemsByDynasty[poem.dynasty].push({
+          title: poem.title,
+          author: poem.author,
+        });
+      });
+
+      // List poems by dynasty
+      for (const [dynasty, dynastyPoems] of Object.entries(poemsByDynasty)) {
+        poemList += `${dynasty}:\n`;
+        dynastyPoems.forEach((poem) => {
+          poemList += `- "${poem.title}" by ${poem.author}\n`;
+        });
+        poemList += "\n";
+      }
+
+      return poemList;
+    } catch (error) {
+      console.error(
+        "Error getting all poem summaries with fallback method:",
+        error
+      );
+      return "I'm having trouble accessing the poem database at the moment.";
+    }
+  }
 }
 
 // OpenAI model implementation
@@ -300,40 +889,140 @@ class DeepseekModel extends BaseAIModel {
   }
 }
 
+// Qwen2 model implementation
+class Qwen2Model extends BaseAIModel {
+  constructor(
+    apiKey: string,
+    model: string = "qwen/qwen2.5-vl-72b-instruct:free"
+  ) {
+    super(apiKey, model, config.ai_base_url);
+  }
+}
+
 // AI model types
-type AIModelType = "openai" | "deepseek";
+type AIModelType = "openai" | "deepseek" | "qwen2";
 
 // AI Factory class
 export class AIFactory {
-  static createAI(type: AIModelType = "deepseek"): IAIModel {
-    const apiKey = config.ai_api_key as string;
+  // Store poem database context for reuse
+  private static poemDatabaseContext: string | null = null;
 
-    if (!apiKey) {
-      throw new Error("AI API key is not defined");
+  // Initialize the AI Factory with poem database context
+  static async initialize(): Promise<void> {
+    try {
+      if (process.env.POETRY_TRAINING === "true") {
+        console.log("Initializing AI Factory with poem database context...");
+        console.log(
+          "Environment variables: POETRY_TRAINING =",
+          process.env.POETRY_TRAINING
+        );
+
+        // Check other collections for poems
+        if (
+          mongoose.connection &&
+          mongoose.connection.readyState === 1 &&
+          mongoose.connection.db
+        ) {
+          // Get all collections
+          try {
+            const collections = await mongoose.connection.db
+              .listCollections()
+              .toArray();
+            console.log("All collections in database:");
+            collections.forEach((coll) => console.log(`- ${coll.name}`));
+
+            // Check each collection for poem-like data
+            for (const coll of collections) {
+              try {
+                // Get a sample document to inspect
+                const sample = await mongoose.connection.db
+                  .collection(coll.name)
+                  .findOne(
+                    {},
+                    { projection: { title: 1, author: 1, dynasty: 1 } }
+                  );
+
+                if (
+                  sample &&
+                  (sample.title || sample.author || sample.dynasty)
+                ) {
+                  const count = await mongoose.connection.db
+                    .collection(coll.name)
+                    .countDocuments();
+                  console.log(
+                    `Found potential poem collection: ${coll.name} with ${count} documents`
+                  );
+                  console.log(
+                    `Sample document:`,
+                    JSON.stringify(sample, null, 2)
+                  );
+                }
+              } catch (err) {
+                const error = err as Error;
+                console.log(
+                  `Error inspecting collection ${coll.name}:`,
+                  error.message
+                );
+              }
+            }
+          } catch (error) {
+            console.error("Error listing collections:", error);
+          }
+        }
+
+        this.poemDatabaseContext = await generatePoemDatabaseContext();
+
+        console.log("Poem database context generated:");
+        console.log("-----------------------------");
+        console.log(this.poemDatabaseContext);
+        console.log("-----------------------------");
+
+        if (this.poemDatabaseContext && this.poemDatabaseContext.length > 0) {
+          console.log(
+            "AI Factory initialized successfully with poem database context"
+          );
+        } else {
+          console.warn("Poem database context is empty or null");
+        }
+      } else {
+        console.log(
+          "Poetry training is not enabled. Set POETRY_TRAINING=true to enable it."
+        );
+      }
+    } catch (error) {
+      console.error("Error initializing AI Factory:", error);
+      this.poemDatabaseContext = null;
     }
+  }
 
+  // Get the poem database context
+  static getPoemDatabaseContext(): string {
+    return this.poemDatabaseContext || "";
+  }
+
+  static createAI(type: AIModelType = "qwen2"): IAIModel {
+    // Get the appropriate API key and model based on the type
     switch (type) {
       case "openai":
-        return new OpenAIModel(apiKey);
+        return new OpenAIModel(config.ai_api_key as string);
       case "deepseek":
-        return new DeepseekModel(apiKey);
+        return new DeepseekModel(config.ai_api_key as string);
+      case "qwen2":
+      default:
+        return new Qwen2Model(config.qwen2_api_key as string);
     }
   }
 
   static createCustomAI(type: AIModelType, model: string): IAIModel {
-    const apiKey = config.ai_api_key as string;
-
-    if (!apiKey) {
-      throw new Error("AI API key is not defined");
-    }
-
+    // Get the appropriate API key and model based on the type
     switch (type) {
       case "openai":
-        return new OpenAIModel(apiKey, model);
+        return new OpenAIModel(config.ai_api_key as string, model);
       case "deepseek":
-        return new DeepseekModel(apiKey, model);
+        return new DeepseekModel(config.ai_api_key as string, model);
+      case "qwen2":
       default:
-        throw new Error(`Unsupported AI type: ${type}`);
+        return new Qwen2Model(config.qwen2_api_key as string, model);
     }
   }
 }

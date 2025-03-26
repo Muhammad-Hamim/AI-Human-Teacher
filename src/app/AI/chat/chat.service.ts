@@ -17,7 +17,7 @@ const processMessage = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
     const { message, modelName, options } = req.body;
     const sendAudioData = options?.sendAudioData === true;
-
+    console.log("🔍 message", req.body);
     // Validate request data
     if (!message || !message.chatId || !message.message?.content) {
       return next(new AppError(httpStatus.BAD_REQUEST, "Invalid request data"));
@@ -26,11 +26,21 @@ const processMessage = catchAsync(
     try {
       // Determine AI model type and create instance
       const useOpenAI = modelName?.includes("gpt");
-      const aiType = useOpenAI ? "openai" : "deepseek";
+      const useQwen = modelName?.includes("qwen");
+      let aiType = "qwen2"; // Default to qwen2
+
+      if (useOpenAI) {
+        aiType = "openai";
+      } else if (modelName?.includes("deepseek")) {
+        aiType = "deepseek";
+      }
 
       // Create AI with specified model or default
       const ai = modelName
-        ? AIFactory.createCustomAI(aiType, modelName)
+        ? AIFactory.createCustomAI(
+            aiType as "openai" | "deepseek" | "qwen2",
+            modelName
+          )
         : AIFactory.createAI();
 
       // Process the message and get AI response
@@ -62,7 +72,9 @@ const processMessage = catchAsync(
 
         // Create base response object with audio data
         const responseWithAudio = {
-          ...aiResponse.toObject(),
+          ...((aiResponse as any).toObject
+            ? (aiResponse as any).toObject()
+            : aiResponse),
           audio: {
             url: audioUrl,
             voiceId,
@@ -153,10 +165,12 @@ const processMessage = catchAsync(
           success: true,
           message: "AI response generated successfully (TTS generation failed)",
           data: {
-            ...aiResponse.toObject(),
+            ...((aiResponse as any).toObject
+              ? (aiResponse as any).toObject()
+              : aiResponse),
             audio: {
               error: "TTS generation failed",
-              errorDetails: error.message,
+              errorDetails: (error as Error).message,
             },
           },
         });
@@ -193,11 +207,21 @@ const streamMessage = catchAsync(
 
       // Determine AI model type and create instance
       const useOpenAI = modelToUse?.includes("gpt");
-      const aiType = useOpenAI ? "openai" : "deepseek";
+      const useQwen = modelToUse?.includes("qwen");
+      let aiType = "qwen2"; // Default to qwen2
+
+      if (useOpenAI) {
+        aiType = "openai";
+      } else if (modelToUse?.includes("deepseek")) {
+        aiType = "deepseek";
+      }
 
       // Create AI with specified model or default
       const ai = modelToUse
-        ? AIFactory.createCustomAI(aiType, modelToUse)
+        ? AIFactory.createCustomAI(
+            aiType as "openai" | "deepseek" | "qwen2",
+            modelToUse
+          )
         : AIFactory.createAI();
 
       // Initialize stream processing
@@ -226,7 +250,7 @@ const streamMessage = catchAsync(
         res.write(`data: ${JSON.stringify(chunk)}\n\n`);
 
         // Ensure the data is sent immediately
-        if (res.flush) {
+        if ("flush" in res && typeof res.flush === "function") {
           res.flush();
         }
       }
@@ -265,7 +289,7 @@ const streamMessage = catchAsync(
           );
 
           // Ensure the data is sent immediately
-          if (res.flush) {
+          if ("flush" in res && typeof res.flush === "function") {
             res.flush();
           }
 
@@ -290,7 +314,7 @@ const streamMessage = catchAsync(
           );
 
           // Ensure the data is sent immediately
-          if (res.flush) {
+          if ("flush" in res && typeof res.flush === "function") {
             res.flush();
           }
         }
@@ -385,11 +409,21 @@ async function generateAIResponse(
 
     // Determine AI model type
     const useOpenAI = modelToUse?.includes("gpt");
-    const aiType = useOpenAI ? "openai" : "deepseek";
+    const useQwen = modelToUse?.includes("qwen");
+    let aiType = "qwen2"; // Default to qwen2
+
+    if (useOpenAI) {
+      aiType = "openai";
+    } else if (modelToUse?.includes("deepseek")) {
+      aiType = "deepseek";
+    }
 
     // Create AI with specified model or default
     const ai = modelToUse
-      ? AIFactory.createCustomAI(aiType, modelToUse)
+      ? AIFactory.createCustomAI(
+          aiType as "openai" | "deepseek" | "qwen2",
+          modelToUse
+        )
       : AIFactory.createAI();
 
     // Create message data object

@@ -9,47 +9,40 @@ import path from "path";
  * Controller to test TTS functionality
  */
 const testTTS = catchAsync(
-  async (req: Request, res: Response, next: NextFunction) => {
-    const { text, voiceId = "en-US-JennyNeural" } = req.body;
-
-    if (!text) {
-      return res.status(httpStatus.BAD_REQUEST).json({
-        success: false,
-        message: "Text is required",
-      });
-    }
-
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      console.log(
-        "Received TTS test request with text:",
-        text.substring(0, 100) + (text.length > 100 ? "..." : "")
-      );
+      // Get text from request
+      const { text, voiceId = "en-US-JennyNeural" } = req.body;
 
-      // Generate a unique file name for this test
-      const timestamp = Date.now();
-      const outputFileName = `test-tts-${timestamp}.wav`;
+      if (!text) {
+        res.status(httpStatus.BAD_REQUEST).json({
+          success: false,
+          message: "Text is required for TTS testing",
+        });
+        return;
+      }
 
-      // Generate TTS - now returns both URL and audio data
+      const outputFileName = `tts-test-${Date.now()}.wav`;
+      const serverBaseUrl = SpeechService.getServerBaseUrl();
+
+      console.log("🎙️ Generating TTS for test...");
       const { audioUrl, audioData } = await SpeechService.speak({
         text,
         voiceId,
         outputFileName,
+        baseUrl: serverBaseUrl,
       });
 
-      // Return response with audio data
+      // Return success with audioUrl
       res.status(httpStatus.OK).json({
         success: true,
         message: "TTS generated successfully",
         data: {
-          text,
           audioUrl,
-          audioData,
           voiceId,
-          contentType: "audio/wav",
         },
       });
     } catch (error) {
-      console.error("Error in testTTS:", error);
       next(error);
     }
   }

@@ -28,6 +28,6 @@ router.patch(
 );
 
 // Delete a message
-router.delete("/:id", auth(), MessageController.deleteMessage);
+router.delete("/:id", MessageController.deleteMessage);
 
 export const MessageRouter = router; 

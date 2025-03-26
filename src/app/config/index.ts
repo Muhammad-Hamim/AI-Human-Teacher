@@ -8,6 +8,8 @@ export default {
   port: process.env.PORT,
   ai_base_url: process.env.AI_BASE_URL,
   ai_api_key: process.env.AI_API_KEY,
+  qwen2_api_key: process.env.QWEN2_5_VL_72B_API_KEY,
+  qwen2_model_name: process.env.QWEN2_5_VL_72B_MODEL_NAME,
   database_url: process.env.DATABASE_URL,
   bcrypt_salt_rounds: process.env.BCRYPT_SALT_ROUNDS,
   JWT_ACCESS_SECRET: process.env.JWT_ACCESS_SECRET,

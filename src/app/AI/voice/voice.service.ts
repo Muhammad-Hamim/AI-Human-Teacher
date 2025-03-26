@@ -17,6 +17,13 @@ interface VoiceSession {
 // Map to store active sessions
 const activeSessions = new Map<string, VoiceSession>();
 
+// In the function where userData is assigned
+// Add proper type interfaces
+interface UserData {
+  name: string;
+  [key: string]: any;
+}
+
 /**
  * Initialize voice socket handlers
  */
@@ -70,13 +77,25 @@ const initVoiceSocket = (io: Server) => {
             console.warn("User model not found, creating placeholder data");
           }
 
+          // Initialize userData with a default name
+          let userData: UserData = { name: "User" };
+
           // Get user data if available
-          let userData = { name: "User" };
           if (UserModel && userId) {
             try {
               const user = await UserModel.findById(userId).lean();
               if (user) {
-                userData = user;
+                // When assigning the user data, ensure it has a name property
+                if (Array.isArray(user)) {
+                  // If it's an array, take the first element
+                  userData =
+                    user.length > 0
+                      ? { name: user[0].name || "User", ...user[0] }
+                      : userData;
+                } else {
+                  // Otherwise, use the object directly
+                  userData = { name: user.name || "User", ...user };
+                }
               }
             } catch (error) {
               console.error("Error fetching user data:", error);
@@ -84,7 +103,7 @@ const initVoiceSocket = (io: Server) => {
           }
 
           // Create message data for initial greeting
-          const messageData = {
+          const messageData: Omit<TMessage, "_id"> = {
             userId,
             chatId: sessionId, // Use sessionId as chatId
             message: {
@@ -93,7 +112,7 @@ const initVoiceSocket = (io: Server) => {
             },
             user: {
               senderId: null,
-              senderType: "assistant",
+              senderType: "assistant" as const, // Use a const assertion to specify the exact type
             },
             isAIResponse: true,
             isDeleted: false,
@@ -134,16 +153,22 @@ const initVoiceSocket = (io: Server) => {
           }
 
           // Get AI instance based on session data
-          const aiType = session.model?.includes("gpt") ? "openai" : "deepseek";
+          const aiType = session.model?.includes("gpt")
+            ? "openai"
+            : session.model?.includes("deepseek")
+              ? "deepseek"
+              : "qwen2";
+
+          // Create AI instance with custom model or default
           const ai = session.model
             ? AIFactory.createCustomAI(
-                aiType as "openai" | "deepseek",
+                aiType as "openai" | "deepseek" | "qwen2",
                 session.model
               )
             : AIFactory.createAI();
 
           // Create message data object
-          const messageData = {
+          const messageData: Omit<TMessage, "_id"> = {
             userId: session.userId,
             chatId: sessionId, // Use sessionId as chatId
             message: {
@@ -152,7 +177,7 @@ const initVoiceSocket = (io: Server) => {
             },
             user: {
               senderId: session.userId,
-              senderType: "user",
+              senderType: "user" as const, // Use a const assertion to specify the exact type
             },
             isAIResponse: false,
             isDeleted: false,
@@ -172,21 +197,33 @@ const initVoiceSocket = (io: Server) => {
                 sessionId,
                 content: chunk.message.content,
               });
-
-              // Add to full response
-              fullResponse += chunk.message.content;
             }
           }
 
-          // Signal that the AI message is complete
-          socket.emit("ai_message_complete", {
-            sessionId,
-            content: fullResponse,
-          });
+          // Save the full response
+          if (fullResponse) {
+            const aiModel = ai as any;
+            if (aiModel.saveMessage) {
+              await aiModel.saveMessage({
+                userId: session.userId,
+                chatId: sessionId,
+                message: {
+                  content: fullResponse,
+                  contentType: "text",
+                },
+                user: {
+                  senderId: session.userId,
+                  senderType: "user" as const,
+                },
+                isAIResponse: false,
+                isDeleted: false,
+              });
+            }
+          }
         } catch (error) {
-          console.error("Error processing voice message:", error);
+          console.error("Error processing user message:", error);
           socket.emit("error", {
-            message: "Failed to process message",
+            message: "Failed to process user message",
             details: (error as Error).message,
           });
         }
@@ -195,39 +232,22 @@ const initVoiceSocket = (io: Server) => {
 
     // Handle session end
     socket.on("end_session", (data: { sessionId: string }) => {
-      try {
-        const { sessionId } = data;
-
-        // Remove session data
-        activeSessions.delete(sessionId);
-
-        // Leave the room
-        socket.leave(sessionId);
-
-        // Acknowledge session end
-        socket.emit("session_ended", { sessionId });
-
-        console.log(`Voice session ended: ${sessionId}`);
-      } catch (error) {
-        console.error("Error ending voice session:", error);
-        socket.emit("error", {
-          message: "Failed to end session",
-          details: (error as Error).message,
-        });
-      }
+      const { sessionId } = data;
+      activeSessions.delete(sessionId);
+      socket.leave(sessionId);
+      socket.emit("session_ended", { sessionId });
     });
 
-    // Handle disconnection
+    // Handle socket disconnect
     socket.on("disconnect", () => {
       console.log("Voice client disconnected:", socket.id);
-
-      // Find and clean up any sessions for this socket
-      for (const [sessionId, session] of activeSessions.entries()) {
-        if (socket.rooms.has(sessionId)) {
+      activeSessions.forEach((session, sessionId) => {
+        if (session.userId === socket.id) {
           activeSessions.delete(sessionId);
-          console.log(`Auto-cleaned voice session: ${sessionId}`);
+          socket.leave(sessionId);
+          socket.emit("session_ended", { sessionId });
         }
-      }
+      });
     });
   });
 
@@ -253,11 +273,66 @@ const processVoiceTranscript = async (
     );
 
     // Use the Chat service to process the transcript
+    const model = modelName || "qwen/qwen2.5-vl-72b-instruct:free";
+
+    // Determine AI model type and create instance
+    const useOpenAI = model?.includes("gpt");
+    const useQwen = model?.includes("qwen");
+    let aiType = "qwen2"; // Default to qwen2
+
+    if (useOpenAI) {
+      aiType = "openai";
+    } else if (model?.includes("deepseek")) {
+      aiType = "deepseek";
+    }
+
+    // Create AI with specified model or default
+    const ai = model
+      ? AIFactory.createCustomAI(
+          aiType as "openai" | "deepseek" | "qwen2",
+          model
+        )
+      : AIFactory.createAI();
+
+    // Get the User model
+    let UserModel;
+    try {
+      UserModel = mongoose.model("User");
+    } catch (error) {
+      // If model doesn't exist, create a placeholder
+      console.warn("User model not found, creating placeholder data");
+    }
+
+    // Initialize userData with a default name
+    let userData: UserData = { name: "User" };
+
+    if (UserModel && userId) {
+      try {
+        const user = await UserModel.findById(userId).lean();
+        if (user) {
+          // When assigning the user data, ensure it has a name property
+          if (Array.isArray(user)) {
+            // If it's an array, take the first element
+            userData =
+              user.length > 0
+                ? { name: user[0].name || "User", ...user[0] }
+                : userData;
+          } else {
+            // Otherwise, use the object directly
+            userData = { name: user.name || "User", ...user };
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching user data:", error);
+      }
+    }
+
+    // Use the Chat service to process the transcript
     const response = await ChatService.generateAIResponse(
       transcript,
       chatId,
       userId,
-      modelName || "deepseek-r1", // Use specified model or default
+      model,
       { voiceId } // Pass voice ID for TTS generation
     );
 
@@ -293,7 +368,7 @@ const getServiceStatus = async (): Promise<{
 
 /**
  * Get available voices for speech synthesis
- * 
+ *
  * @returns Array of available voice models
  */
 const getAvailableVoices = async () => {
@@ -308,14 +383,14 @@ const getAvailableVoices = async () => {
         id: "en-US-JennyNeural",
         name: "Jenny (Female)",
         language: "en-US",
-        gender: "Female"
+        gender: "Female",
       },
       {
         id: "en-US-GuyNeural",
         name: "Guy (Male)",
         language: "en-US",
-        gender: "Male"
-      }
+        gender: "Male",
+      },
     ];
   }
 };

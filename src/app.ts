@@ -10,40 +10,25 @@ import path from "path";
 //create express app
 const app = express();
 
-// CORS configuration with more flexible options
-const corsOptions = {
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-
-    // List of allowed origins
-    const allowedOrigins = [
-      "http://localhost:5173",
-      "http://localhost:3000",
-      "http://localhost:8080",
-    ];
-
-    // Check if the origin is allowed
-    if (
-      allowedOrigins.indexOf(origin) !== -1 ||
-      process.env.NODE_ENV !== "production"
+// Configure CORS
+app.use(
+  cors({
+    origin: function (
+      origin: string | undefined,
+      callback: (err: Error | null, allow?: boolean) => void
     ) {
+      // Allow all origins
       callback(null, true);
-    } else {
-      callback(new Error("Not allowed by CORS"));
-    }
-  },
-  credentials: true,
-  exposedHeaders: ["Content-Type", "Content-Length", "Content-Disposition"],
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-};
+    },
+    credentials: true,
+  })
+);
 
 //add parser
 app.use(express.json());
 app.use(cookieParser());
 app.use(bodyParser.json({ limit: "10mb" }));
 app.use(bodyParser.urlencoded({ limit: "10mb", extended: true }));
-app.use(cors(corsOptions));
 
 // Serve static files from dist directory for TTS audio
 app.use(
