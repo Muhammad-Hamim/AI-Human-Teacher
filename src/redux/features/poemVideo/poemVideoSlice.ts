@@ -1,3 +1,5 @@
+// @dependencies: ["@ffmpeg/ffmpeg": "^0.11.0", "@ffmpeg/core": "^0.11.0"]
+
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 
 export interface AnimationStyle {

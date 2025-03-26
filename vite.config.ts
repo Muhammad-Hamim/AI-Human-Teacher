@@ -15,8 +15,12 @@ export default defineConfig({
     include: ["socket.io-client"],
   },
   server: {
+    port: 3000,
+    strictPort: true,
     hmr: {
       overlay: false,
     },
+    host: true, // Listen on all addresses
+    proxy: {}, // Add proxy configuration if needed
   },
 });

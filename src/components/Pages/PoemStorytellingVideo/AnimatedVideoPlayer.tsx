@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { gsap } from "gsap";
 import {
   syncAnimationWithAudio,
@@ -8,6 +8,7 @@ import {
   resumeElementAnimations,
 } from "./animations/GsapEffects";
 import { useAppSelector } from "../../../redux/hooks";
+import { exportVideo, downloadBlob } from "./VideoExporter";
 
 interface AnimatedVideoPlayerProps {
   videoData?: {
@@ -49,6 +50,9 @@ const AnimatedVideoPlayer: React.FC<AnimatedVideoPlayerProps> = ({
     frameRate: number;
     duration: number;
   } | null>(null);
+
+  // Add worker reference
+  const workerRef = useRef<Worker | null>(null);
 
   useEffect(() => {
     if (videoData) {
@@ -294,16 +298,198 @@ const AnimatedVideoPlayer: React.FC<AnimatedVideoPlayerProps> = ({
     }
   }, [isPlaying]);
 
-  // Modified animation setup with improved GSAP timeline
+  // Optimize the applyAdvancedImageTransition function for better performance
+  const applyAdvancedImageTransition = (
+    ctx: CanvasRenderingContext2D,
+    currentImage: HTMLImageElement,
+    nextImage: HTMLImageElement | null,
+    transition: number,
+    width: number,
+    height: number,
+    frameIndex: number,
+    totalFrames: number
+  ) => {
+    // Clear canvas
+    ctx.clearRect(0, 0, width, height);
+
+    // Calculate progress through overall animation (0-1)
+    const progressInSequence = frameIndex / (totalFrames - 1);
+
+    // Optimize: Use a smaller number of effects and select based on image index not frame index
+    // This ensures each image gets consistent treatment and improves performance
+    const effectIndex = Math.floor(frameIndex / 15) % 4; // Reduce number of effects from 7 to 4
+
+    // Save context
+    ctx.save();
+
+    // Apply different effect for each image in sequence - simplified for performance
+    switch (effectIndex) {
+      case 0: // Optimized zoom effect
+        // Draw current image
+        ctx.globalAlpha = 1 - transition;
+        ctx.drawImage(currentImage, 0, 0, width, height);
+
+        // Draw next image with zoom
+        if (nextImage) {
+          ctx.globalAlpha = transition;
+          ctx.translate(width / 2, height / 2);
+          const zoomScale = 1 + transition * 0.1; // Reduced scale amount
+          ctx.scale(zoomScale, zoomScale);
+          ctx.drawImage(nextImage, -width / 2, -height / 2, width, height);
+        }
+        break;
+
+      case 1: // Optimized slide effect
+        // Draw current image with slide
+        ctx.globalAlpha = 1;
+        ctx.drawImage(currentImage, -width * transition, 0, width, height);
+
+        // Draw next image
+        if (nextImage) {
+          ctx.globalAlpha = 1;
+          ctx.drawImage(nextImage, width * (1 - transition), 0, width, height);
+        }
+        break;
+
+      case 2: // Optimized fade effect with color
+        // Draw base image
+        ctx.globalAlpha = 1;
+        ctx.drawImage(currentImage, 0, 0, width, height);
+
+        // Draw next image with fade
+        if (nextImage) {
+          ctx.globalAlpha = transition;
+          ctx.drawImage(nextImage, 0, 0, width, height);
+
+          // Add a subtle color overlay for visual interest
+          ctx.globalAlpha = 0.1 * Math.sin(transition * Math.PI);
+          ctx.globalCompositeOperation = "overlay";
+          ctx.fillStyle = `hsl(${(frameIndex * 20) % 360}, 70%, 50%)`;
+          ctx.fillRect(0, 0, width, height);
+          ctx.globalCompositeOperation = "source-over";
+        }
+        break;
+
+      case 3: // Simple crossfade with vignette
+      default:
+        // Draw current image
+        ctx.globalAlpha = 1;
+        ctx.drawImage(currentImage, 0, 0, width, height);
+
+        // Draw next image with fade
+        if (nextImage) {
+          ctx.globalAlpha = transition;
+          ctx.drawImage(nextImage, 0, 0, width, height);
+        }
+
+        // Add subtle vignette
+        const vignetteGradient = ctx.createRadialGradient(
+          width / 2,
+          height / 2,
+          0,
+          width / 2,
+          height / 2,
+          width * 0.8
+        );
+        vignetteGradient.addColorStop(0, "rgba(0,0,0,0)");
+        vignetteGradient.addColorStop(
+          1,
+          `rgba(0,0,0,${0.3 * Math.sin(transition * Math.PI)})`
+        );
+
+        ctx.globalAlpha = 0.5;
+        ctx.fillStyle = vignetteGradient;
+        ctx.fillRect(0, 0, width, height);
+    }
+
+    // Restore context
+    ctx.restore();
+  };
+
+  // Simplify the decorative elements for better performance
+  const addDecorativeElements = (
+    ctx: CanvasRenderingContext2D,
+    width: number,
+    height: number,
+    transition: number,
+    frameIndex: number,
+    totalFrames: number
+  ) => {
+    // Use much simpler decorative elements for performance
+    ctx.save();
+
+    // Just add a subtle light effect at one corner
+    const lightX = width * 0.2;
+    const lightY = height * 0.2;
+
+    const glow = ctx.createRadialGradient(
+      lightX,
+      lightY,
+      0,
+      lightX,
+      lightY,
+      width * 0.4
+    );
+    glow.addColorStop(
+      0,
+      `rgba(255, 255, 220, ${0.2 * Math.sin(transition * Math.PI)})`
+    );
+    glow.addColorStop(1, "rgba(255, 255, 220, 0)");
+
+    ctx.globalCompositeOperation = "screen";
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, width, height);
+
+    ctx.restore();
+  };
+
+  // Optimize the frame effects for better performance
+  const applyFrameEffects = (
+    ctx: CanvasRenderingContext2D,
+    width: number,
+    height: number,
+    frameIndex: number,
+    totalFrames: number
+  ) => {
+    // Save the current context state
+    ctx.save();
+
+    // Calculate progress
+    const progress = frameIndex / (totalFrames - 1);
+
+    // Just add a subtle vignette - significantly simplified
+    const gradient = ctx.createRadialGradient(
+      width / 2,
+      height / 2,
+      width * 0.5,
+      width / 2,
+      height / 2,
+      width
+    );
+
+    gradient.addColorStop(0, "rgba(0, 0, 0, 0)");
+    gradient.addColorStop(1, "rgba(0, 0, 0, 0.3)");
+
+    ctx.fillStyle = gradient;
+    ctx.globalCompositeOperation = "multiply";
+    ctx.fillRect(0, 0, width, height);
+
+    // Restore the context
+    ctx.restore();
+  };
+
+  // Update the main animation method to use the advanced transition effects
   useEffect(() => {
     if (!loadedImages.length || !canvasRef.current) {
       console.log("Cannot set up animation: missing images or canvas");
       return;
     }
 
-    console.log(`Setting up animation with ${loadedImages.length} images`);
+    console.log(
+      `Setting up advanced animation with ${loadedImages.length} images`
+    );
 
-    // Create a main GSAP timeline
+    // Create a main GSAP timeline with advanced configuration
     const timeline = gsap.timeline({
       paused: true,
       onUpdate: () => {
@@ -329,8 +515,8 @@ const AnimatedVideoPlayer: React.FC<AnimatedVideoPlayerProps> = ({
               const frameFraction = rawFrameIndex - frameIndex;
               const nextFrameIndex = Math.min(frameIndex + 1, frameCount - 1);
 
-              // Apply enhanced transition effect
-              applyImageTransitionEffect(
+              // Apply our enhanced advanced transition with varied effects
+              applyAdvancedImageTransition(
                 ctx,
                 loadedImages[frameIndex],
                 frameIndex < frameCount - 1
@@ -339,10 +525,11 @@ const AnimatedVideoPlayer: React.FC<AnimatedVideoPlayerProps> = ({
                 frameFraction,
                 canvas.width,
                 canvas.height,
-                animationStyle
+                frameIndex,
+                frameCount
               );
 
-              // Add visual effects
+              // Add core visual effects
               applyFrameEffects(
                 ctx,
                 canvas.width,
@@ -552,290 +739,63 @@ const AnimatedVideoPlayer: React.FC<AnimatedVideoPlayerProps> = ({
     };
   }, [isPlaying]);
 
-  // Add image transition effect with blend modes and color transformations
-  const applyImageTransitionEffect = (
-    ctx: CanvasRenderingContext2D,
-    currentImage: HTMLImageElement,
-    nextImage: HTMLImageElement | null,
-    transition: number,
-    width: number,
-    height: number,
-    animationStyle: string
-  ) => {
-    // Clear canvas
-    ctx.clearRect(0, 0, width, height);
-
-    // Save the original state
-    ctx.save();
-
-    // Apply different transition effects based on animation style
-    switch (animationStyle) {
-      case "zoom":
-        // Zoom transition
-        const scale1 = 1 + transition * 0.1;
-        const scale2 = 1.1 - transition * 0.1;
-
-        // Draw current image with zoom out effect
-        ctx.globalAlpha = 1 - transition;
-        ctx.translate(width / 2, height / 2);
-        ctx.scale(scale1, scale1);
-        ctx.drawImage(currentImage, -width / 2, -height / 2, width, height);
-        ctx.resetTransform();
-
-        // Draw next image with zoom in effect if available
-        if (nextImage) {
-          ctx.globalAlpha = transition;
-          ctx.translate(width / 2, height / 2);
-          ctx.scale(scale2, scale2);
-          ctx.drawImage(nextImage, -width / 2, -height / 2, width, height);
-          ctx.resetTransform();
-        }
-        break;
-
-      case "slide":
-        // Slide transition
-        const slideOffset = width * transition;
-
-        // Draw current image sliding out
-        ctx.globalAlpha = 1;
-        ctx.drawImage(currentImage, -slideOffset, 0, width, height);
-
-        // Draw next image sliding in if available
-        if (nextImage) {
-          ctx.drawImage(nextImage, width - slideOffset, 0, width, height);
-        }
-        break;
-
-      case "fade":
-        // Enhanced fade transition with color overlay
-        ctx.globalAlpha = 1;
-        ctx.drawImage(currentImage, 0, 0, width, height);
-
-        if (nextImage) {
-          // Add subtle color gradient overlay during transition
-          const gradient = ctx.createLinearGradient(0, 0, width, height);
-          gradient.addColorStop(0, `rgba(30, 64, 175, ${transition * 0.2})`); // blue-700
-          gradient.addColorStop(1, `rgba(190, 24, 93, ${transition * 0.2})`); // pink-700
-
-          ctx.globalAlpha = 1;
-          ctx.fillStyle = gradient;
-          ctx.fillRect(0, 0, width, height);
-
-          // Blend in next image
-          ctx.globalCompositeOperation = "source-over";
-          ctx.globalAlpha = transition;
-          ctx.drawImage(nextImage, 0, 0, width, height);
-        }
-        break;
-
-      case "typewriter":
-        // Typewriter effect with scanline transition
-        ctx.globalAlpha = 1;
-        ctx.drawImage(currentImage, 0, 0, width, height);
-
-        if (nextImage) {
-          // Create a scanline effect moving down
-          const scanlineHeight = Math.floor(height * transition);
-          ctx.globalAlpha = 1;
-
-          // Create clipping region for the next image
-          ctx.beginPath();
-          ctx.rect(0, 0, width, scanlineHeight);
-          ctx.clip();
-
-          // Draw the next image in the clipped region
-          ctx.drawImage(nextImage, 0, 0, width, height);
-
-          // Add scanline highlight
-          ctx.globalAlpha = 0.3;
-          ctx.fillStyle = "white";
-          ctx.fillRect(0, scanlineHeight - 2, width, 4);
-        }
-        break;
-
-      case "stagger":
-        // Staggered tile reveal
-        ctx.globalAlpha = 1;
-        ctx.drawImage(currentImage, 0, 0, width, height);
-
-        if (nextImage) {
-          const tileSize = 50;
-          const cols = Math.ceil(width / tileSize);
-          const rows = Math.ceil(height / tileSize);
-          const totalTiles = cols * rows;
-          const tilesRevealed = Math.floor(totalTiles * transition);
-
-          for (let i = 0; i < tilesRevealed; i++) {
-            // Create a semi-random but consistent reveal pattern
-            const row = Math.floor(i / cols);
-            const col = i % cols;
-            const x = col * tileSize;
-            const y = row * tileSize;
-
-            // Draw the tile from the next image
-            ctx.save();
-            ctx.beginPath();
-            ctx.rect(x, y, tileSize, tileSize);
-            ctx.clip();
-            ctx.drawImage(nextImage, 0, 0, width, height);
-            ctx.restore();
-          }
-        }
-        break;
-
-      default:
-        // Simple cross-fade
-        ctx.globalAlpha = 1;
-        ctx.drawImage(currentImage, 0, 0, width, height);
-
-        if (nextImage) {
-          ctx.globalAlpha = transition;
-          ctx.drawImage(nextImage, 0, 0, width, height);
-        }
+  // Replace the download functions with a simpler implementation using the utility
+  const downloadVideo = useCallback(() => {
+    if (!loadedImages.length || !canvasRef.current) {
+      console.error("Cannot generate video: missing images or canvas");
+      return;
     }
 
-    // Restore the original state
-    ctx.restore();
-  };
+    setIsLoading(true);
+    setProgress(0);
 
-  // Enhance the frame effects for more dynamic visuals
-  const applyFrameEffects = (
-    ctx: CanvasRenderingContext2D,
-    width: number,
-    height: number,
-    frameIndex: number,
-    totalFrames: number
-  ) => {
-    // Save the current context state
-    ctx.save();
+    console.log(`Starting video export with ${loadedImages.length} images`);
 
-    // Calculate dynamic parameters based on frame index
-    const progress = frameIndex / (totalFrames - 1);
-    const radialGradientSize = Math.max(width, height) * 0.8;
+    // Export the video with the loaded images
+    exportVideo(loadedImages, {
+      frameRate: 24,
+      width: 1280,
+      height: 720,
+      quality: "medium",
+      audioSrc: audioSrc,
+      onProgress: (progress) => {
+        setProgress(progress);
+      },
+    })
+      .then((blob) => {
+        console.log(
+          `Video export completed, size: ${(blob.size / (1024 * 1024)).toFixed(
+            2
+          )} MB`
+        );
 
-    // Apply a more dramatic vignette effect that pulses subtly
-    const vignetteIntensity = 0.25 + Math.sin(progress * Math.PI * 4) * 0.05;
-    const gradient = ctx.createRadialGradient(
-      width / 2,
-      height / 2,
-      radialGradientSize * 0.2,
-      width / 2,
-      height / 2,
-      radialGradientSize
-    );
+        // Download the video
+        downloadBlob(blob, "poem-video.webm");
 
-    gradient.addColorStop(0, "rgba(0, 0, 0, 0)");
-    gradient.addColorStop(
-      0.7,
-      `rgba(0, 0, 0, ${0.1 + Math.sin(progress * Math.PI) * 0.05})`
-    );
-    gradient.addColorStop(1, `rgba(0, 0, 0, ${vignetteIntensity})`);
+        // Reset loading state
+        setIsLoading(false);
+        setProgress(100);
+      })
+      .catch((error) => {
+        console.error("Video export failed:", error);
+        alert(
+          `Failed to export video: ${error.message}. Please try again or use a different browser.`
+        );
+        setIsLoading(false);
+      });
+  }, [loadedImages, audioSrc]);
 
-    ctx.fillStyle = gradient;
-    ctx.globalCompositeOperation = "multiply";
-    ctx.fillRect(0, 0, width, height);
+  // Clean up worker on component unmount
+  useEffect(() => {
+    return () => {
+      if (workerRef.current) {
+        workerRef.current.terminate();
+        workerRef.current = null;
+      }
+    };
+  }, []);
 
-    // Add dynamic lighting effects with color variation based on progress
-    ctx.globalCompositeOperation = "screen";
-
-    // Primary light source with color shifting based on frame position
-    const hue1 = Math.floor((progress * 180 + 30) % 360); // Warm tones shifting through the spectrum
-    const lightX1 = width * (0.3 + Math.sin(progress * Math.PI * 2) * 0.15);
-    const lightY1 = height * (0.4 + Math.cos(progress * Math.PI * 3) * 0.15);
-
-    const lightGradient1 = ctx.createRadialGradient(
-      lightX1,
-      lightY1,
-      0,
-      lightX1,
-      lightY1,
-      width * 0.5
-    );
-
-    lightGradient1.addColorStop(
-      0,
-      `hsla(${hue1}, 90%, 65%, ${0.12 + Math.sin(progress * Math.PI) * 0.05})`
-    );
-    lightGradient1.addColorStop(0.5, `hsla(${hue1}, 90%, 65%, 0.05)`);
-    lightGradient1.addColorStop(1, "hsla(0, 0%, 100%, 0)");
-
-    ctx.fillStyle = lightGradient1;
-    ctx.fillRect(0, 0, width, height);
-
-    // Secondary light source with complementary color
-    const hue2 = (hue1 + 180) % 360; // Complementary color
-    const lightX2 = width * (0.7 + Math.cos(progress * Math.PI * 2.5) * 0.15);
-    const lightY2 = height * (0.6 + Math.sin(progress * Math.PI * 3.5) * 0.15);
-
-    const lightGradient2 = ctx.createRadialGradient(
-      lightX2,
-      lightY2,
-      0,
-      lightX2,
-      lightY2,
-      width * 0.4
-    );
-
-    lightGradient2.addColorStop(
-      0,
-      `hsla(${hue2}, 80%, 65%, ${
-        0.08 + Math.cos(progress * Math.PI * 2) * 0.03
-      })`
-    );
-    lightGradient2.addColorStop(0.5, `hsla(${hue2}, 80%, 65%, 0.03)`);
-    lightGradient2.addColorStop(1, "hsla(0, 0%, 100%, 0)");
-
-    ctx.fillStyle = lightGradient2;
-    ctx.fillRect(0, 0, width, height);
-
-    // Enhanced film grain texture with varying intensity
-    ctx.globalCompositeOperation = "overlay";
-    ctx.globalAlpha = 0.03 + Math.sin(progress * Math.PI * 7) * 0.01; // Pulsing grain intensity
-
-    // More efficient film grain with fewer iterations but larger particles
-    for (let i = 0; i < 1000; i++) {
-      const x = Math.random() * width;
-      const y = Math.random() * height;
-      const size = Math.random() * 2 + 0.5;
-
-      // Use hue-based coloring for grain to match our lighting
-      const grainHue = Math.random() > 0.5 ? hue1 : hue2;
-      const brightness = Math.random() * 50 + 50;
-      ctx.fillStyle = `hsla(${grainHue}, 30%, ${brightness}%, 0.15)`;
-      ctx.fillRect(x, y, size, size);
-    }
-
-    // Add a subtle atmospheric mist that moves across the frame
-    const mistPosition = (progress * 2) % 1;
-    const mistGradient = ctx.createLinearGradient(
-      width * mistPosition,
-      0,
-      (width * (mistPosition + 0.5)) % 1,
-      height
-    );
-
-    ctx.globalCompositeOperation = "screen";
-    ctx.globalAlpha = 0.05;
-
-    mistGradient.addColorStop(0, `hsla(${hue1}, 30%, 90%, 0.1)`);
-    mistGradient.addColorStop(
-      0.5,
-      `hsla(${(hue1 + 30) % 360}, 30%, 90%, 0.05)`
-    );
-    mistGradient.addColorStop(1, `hsla(${hue1}, 30%, 90%, 0.1)`);
-
-    ctx.fillStyle = mistGradient;
-    ctx.fillRect(0, 0, width, height);
-
-    // Reset composite operation and alpha
-    ctx.globalCompositeOperation = "source-over";
-    ctx.globalAlpha = 1.0;
-
-    // Restore the context to its original state
-    ctx.restore();
-  };
-
-  // Update the play/pause function for more reliable playback
+  // Update the togglePlayback function for better performance
   const togglePlayback = () => {
     if (!animationRef.current) {
       console.warn(
@@ -853,7 +813,6 @@ const AnimatedVideoPlayer: React.FC<AnimatedVideoPlayerProps> = ({
       if (audioRef.current) {
         audioRef.current.play().catch((err) => {
           console.error("Error playing audio:", err);
-          // Continue with animation even if audio fails
         });
       }
     } else {
@@ -890,7 +849,7 @@ const AnimatedVideoPlayer: React.FC<AnimatedVideoPlayerProps> = ({
           className="w-full aspect-video bg-gray-900"
         />
 
-        {/* Additional visual effects overlay */}
+        {/* Simple visual effects overlay instead of dynamic one */}
         <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-black/20 to-black/40 opacity-30"></div>
       </div>
 
@@ -981,6 +940,27 @@ const AnimatedVideoPlayer: React.FC<AnimatedVideoPlayerProps> = ({
               <path
                 fillRule="evenodd"
                 d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z"
+                clipRule="evenodd"
+              />
+            </svg>
+          </button>
+
+          {/* Download button */}
+          <button
+            onClick={downloadVideo}
+            className="text-white p-2 rounded-full hover:bg-white hover:bg-opacity-20 transition-colors"
+            disabled={isLoading || !loadedImages.length}
+            title="Download video"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-5 w-5"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+            >
+              <path
+                fillRule="evenodd"
+                d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"
                 clipRule="evenodd"
               />
             </svg>

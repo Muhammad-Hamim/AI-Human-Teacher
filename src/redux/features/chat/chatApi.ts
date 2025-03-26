@@ -34,8 +34,8 @@ export const chatApi = createApi({
           method: "POST",
           body: {
             message,
-            modelName: qwen2Model,
-            options: { temperature: 1.3, maxToken: 1000 },
+            modelName: deepseekModel,
+            options: { temperature: 1, maxToken: 1000 },
           },
         };
       },

@@ -150,7 +150,7 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
       recognitionRef.current.continuous = true;
       recognitionRef.current.interimResults = true;
 
-      recognitionRef.current.onresult = (event: any) => {
+    recognitionRef.current.onresult = (event: any) => {
         const result = event.results[event.results.length - 1];
         const transcript = result[0].transcript;
         setTranscript(transcript);
@@ -475,28 +475,28 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
             </DialogDescription>
           </div>
           <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={toggleAudio}
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={toggleAudio}
               className="h-8 w-8 rounded-full hover:bg-gray-800 text-gray-400 hover:text-white"
               title={audioEnabled ? "Mute AI voice" : "Unmute AI voice"}
-            >
-              {audioEnabled ? (
-                <Volume2 className="h-4 w-4" />
-              ) : (
-                <VolumeX className="h-4 w-4" />
-              )}
-            </Button>
+              >
+                {audioEnabled ? (
+                    <Volume2 className="h-4 w-4" />
+                ) : (
+                  <VolumeX className="h-4 w-4" />
+                )}
+              </Button>
             <Button
               variant="ghost"
               size="icon"
               className="h-8 w-8 rounded-full hover:bg-gray-800 text-gray-400 hover:text-white"
               onClick={handleClose}
             >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
         </DialogHeader>
 
         {/* Scrollable conversation area */}
@@ -510,7 +510,7 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
                   For the best voice experience, please use a supported browser
                   like Chrome, Edge, or Safari.
                 </p>
-              </div>
+          </div>
             )}
 
             {/* Conversation area with transcript and AI response */}
@@ -545,7 +545,7 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
                   <div className="w-full h-12 mt-2">
                     <SpeechWaveform
                       isActive={isListening && !processingQuery && !isSpeaking}
-                      intensity={speechIntensity}
+                intensity={speechIntensity}
                       color="#3b82f6"
                       backgroundColor="rgba(30, 41, 59, 0.5)"
                       mode="user"
@@ -556,7 +556,7 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
                     />
                   </div>
                 )}
-              </div>
+            </div>
 
               {/* AI's response area */}
               <div className="relative h-auto">
@@ -584,12 +584,12 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
                           <Loader2 className="h-5 w-5 text-teal-500 animate-spin" />
                           <p className="text-gray-400">Thinking...</p>
                         </div>
-                      </div>
+                </div>
                     </motion.div>
-                  )}
+              )}
 
                   {/* AI response */}
-                  {aiResponse && (
+              {aiResponse && (
                     <motion.div
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -622,7 +622,7 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
                           )}
                         </div>
                         <div className="max-h-[50vh] ">
-                          {renderHighlightedResponse()}
+                  {renderHighlightedResponse()}
                         </div>
                       </div>
                     </motion.div>
@@ -639,8 +639,8 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
                       backgroundColor="rgba(17, 24, 39, 0.5)"
                       mode="ai"
                     />
-                  </div>
-                )}
+                </div>
+              )}
 
                 {/* Loading indicator */}
                 {processingQuery && !aiResponse && (
@@ -656,19 +656,19 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
                 )}
               </div>
             </div>
+            </div>
           </div>
-        </div>
 
         {/* Fixed controls section at bottom */}
         <div className="bg-gray-900 p-6 pt-2 border-t border-gray-800 flex-shrink-0">
           {/* Controls */}
           <div className="flex justify-center">
             <div className="flex items-center gap-4">
-              <motion.div
+                <motion.div
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-              >
-                <Button
+                >
+                  <Button
                   variant={isListening ? "destructive" : "default"}
                   size="icon"
                   className={`rounded-full h-14 w-14 ${
@@ -686,8 +686,8 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
                   ) : (
                     <Mic className="h-6 w-6" />
                   )}
-                </Button>
-              </motion.div>
+                  </Button>
+                </motion.div>
             </div>
           </div>
 
