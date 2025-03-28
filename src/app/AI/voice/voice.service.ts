@@ -380,15 +380,15 @@ const getAvailableVoices = async () => {
     // Return a minimal set of voices if there's an error
     return [
       {
-        id: "en-US-JennyNeural",
-        name: "Jenny (Female)",
-        language: "en-US",
+        id: "zh-CN-XiaoxiaoNeural",
+        name: "Xiaoxiao (Female)",
+        language: "zh-CN",
         gender: "Female",
       },
       {
-        id: "en-US-GuyNeural",
-        name: "Guy (Male)",
-        language: "en-US",
+        id: "zh-CN-YunjianNeural",
+        name: "Yunjian (Male)",
+        language: "zh-CN", 
         gender: "Male",
       },
     ];

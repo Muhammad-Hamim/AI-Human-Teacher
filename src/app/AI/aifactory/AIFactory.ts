@@ -2,7 +2,7 @@ import { OpenAI } from "openai";
 import config from "../../../app/config";
 import mongoose, { Document } from "mongoose";
 import { systemPrompt } from "../../utils/systemPrompt";
-import { TPoem } from "../../Models/poem/poem.interface";
+import { TLine, TPoem } from "../../Models/poem/poem.interface";
 import {
   generatePoemDatabaseContext,
   getAllPoemSummaries,
@@ -70,7 +70,7 @@ abstract class BaseAIModel implements IAIModel {
   protected client: OpenAI;
   protected model: string;
   protected messageModel: mongoose.Model<TMessageDocument>;
-  protected poemModel: mongoose.Model<TPoem & Document>;
+  protected poemModel!: mongoose.Model<TPoem & Document>;
 
   constructor(apiKey: string, model: string, baseURL?: string) {
     this.client = new OpenAI({
@@ -177,97 +177,37 @@ abstract class BaseAIModel implements IAIModel {
       return await this.getAllPoemSummaries();
     }
 
-    // Check if the query is requesting a random poem
-    const isRandomPoemRequest =
-      userMessage.toLowerCase().includes("random poem") ||
-      (userMessage.toLowerCase().includes("random") &&
-        userMessage.toLowerCase().includes("poem")) ||
-      (userMessage.toLowerCase().includes("any") &&
-        userMessage.toLowerCase().includes("poem"));
-
-    if (isRandomPoemRequest) {
-      console.log("Processing random poem request");
-      try {
-        // Get a random poem from the database
-        const count = await this.poemModel.countDocuments();
-        if (count === 0) {
-          return "No poems found in the database.";
-        }
-
-        // Get a random poem using aggregation with $sample
-        const randomPoems = await this.poemModel.aggregate([
-          { $sample: { size: 1 } },
-        ]);
-
-        if (randomPoems.length === 0) {
-          return "Failed to retrieve a random poem.";
-        }
-
-        const randomPoem = randomPoems[0];
-        console.log(
-          `Retrieved random poem: "${randomPoem.title}" by ${randomPoem.author}`
-        );
-
-        // Format the poem data
-        let poemContext = "RANDOM POEM FROM DATABASE:\n\n";
-        poemContext += `Title: ${randomPoem.title}\n`;
-        poemContext += `Author: ${randomPoem.author}\n`;
-        poemContext += `Dynasty: ${randomPoem.dynasty}\n`;
-        poemContext += "Lines:\n";
-
-        randomPoem.lines.forEach((line, lineIndex) => {
-          poemContext += `  ${lineIndex + 1}. ${line.chinese}\n`;
-          poemContext += `     Pinyin: ${line.pinyin}\n`;
-          poemContext += `     Translation: ${line.translation}\n`;
-          if (line.explanation) {
-            poemContext += `     Line Explanation: ${line.explanation}\n`;
-          }
-        });
-
-        poemContext += `Explanation: ${randomPoem.explanation}\n`;
-        poemContext += `Historical & Cultural Context: ${randomPoem.historicalCulturalContext}\n\n`;
-
-        // Always include JSON representation for random poem requests
-        poemContext += "JSON FORMAT:\n```json\n";
-        poemContext += JSON.stringify(randomPoem, null, 2);
-        poemContext += "\n```\n\n";
-        poemContext +=
-          "INSTRUCTION: If the user asked for JSON format, provide the data exactly as shown in the JSON FORMAT section above.";
-
-        return poemContext;
-      } catch (error) {
-        console.error("Error retrieving random poem:", error);
-        return "Error retrieving random poem from database.";
-      }
+    // Make sure we have a valid poemModel
+    if (!this.poemModel) {
+      console.error("Poem model not initialized");
+      return "Database error: Poem model not initialized.";
     }
 
-    // Check if this is a specific poem title request
-    let specificPoemTitle = null;
+    // Look for text inside quotation marks (single or double)
+    const quotationMatch =
+      userMessage.match(/["'](.+?)["']/i) ||
+      userMessage.match(/[「」""《》](.+?)[」」""《》]/i);
 
-    // Look for title pattern in request
-    const titleMatch =
-      userMessage.match(/title\s+["'](.+?)["']/i) ||
-      userMessage.match(/title\s+[「」""《》](.+?)[」」""《》]/i) ||
-      userMessage.match(/poem\s+["'](.+?)["']/i) ||
-      userMessage.match(/poem\s+[「」""《》](.+?)[」」""《》]/i);
-
-    if (titleMatch && titleMatch[1]) {
-      specificPoemTitle = titleMatch[1].trim();
-      console.log(
-        `Detected specific poem title request: "${specificPoemTitle}"`
-      );
+    if (quotationMatch && quotationMatch[1]) {
+      // The user provided text in quotation marks - do an exact match query
+      const exactSearchText = quotationMatch[1].trim();
+      console.log(`Detected text in quotation marks: "${exactSearchText}"`);
 
       try {
-        // Try to find the exact poem by title
+        // Try to find the exact poem by exact match
         const exactPoem = await this.poemModel
           .findOne({
-            title: specificPoemTitle,
+            $or: [
+              { title: exactSearchText },
+              { author: exactSearchText },
+              { "lines.chinese": exactSearchText },
+            ],
           })
           .lean();
 
         if (exactPoem) {
           console.log(
-            `Found exact poem: "${exactPoem.title}" by ${exactPoem.author}`
+            `Found exact match: "${exactPoem.title}" by ${exactPoem.author}`
           );
 
           // Format just this specific poem data for context
@@ -277,7 +217,7 @@ abstract class BaseAIModel implements IAIModel {
           poemContext += `Dynasty: ${exactPoem.dynasty}\n`;
           poemContext += "Lines:\n";
 
-          exactPoem.lines.forEach((line, lineIndex) => {
+          exactPoem.lines.forEach((line: TLine, lineIndex: number) => {
             poemContext += `  ${lineIndex + 1}. ${line.chinese}\n`;
             poemContext += `     Pinyin: ${line.pinyin}\n`;
             poemContext += `     Translation: ${line.translation}\n`;
@@ -303,25 +243,92 @@ abstract class BaseAIModel implements IAIModel {
           }
 
           console.log(
-            `Generated specific poem context of length: ${poemContext.length}`
+            `Generated exact match poem context of length: ${poemContext.length}`
           );
           return poemContext;
         } else {
-          console.log(`No poem found with exact title: "${specificPoemTitle}"`);
+          console.log(`No exact match found for: "${exactSearchText}"`);
+          return "No relevant data found in the database for your exact search. Please try a different query.";
         }
       } catch (error) {
         console.error(
-          `Error searching for specific poem "${specificPoemTitle}":`,
+          `Error searching for exact match "${exactSearchText}":`,
           error
         );
+        return "No relevant data found in the database for your exact search. Please try a different query.";
       }
     }
 
-    // If no exact match or not a specific title request, proceed with keyword search
+    // Check if the query is requesting a random poem
+    const isRandomPoemRequest =
+      userMessage.toLowerCase().includes("random poem") ||
+      (userMessage.toLowerCase().includes("random") &&
+        userMessage.toLowerCase().includes("poem")) ||
+      (userMessage.toLowerCase().includes("any") &&
+        userMessage.toLowerCase().includes("poem")) ||
+      !quotationMatch; // If no quotation marks, treat as random request
+
+    if (isRandomPoemRequest) {
+      console.log("Processing random poem request");
+      try {
+        // Get a random poem from the database
+        const count = await this.poemModel.countDocuments();
+        if (count === 0) {
+          return "No poems found in the database.";
+        }
+
+        // Get a random poem using aggregation with $sample
+        const randomPoems = await this.poemModel.aggregate([
+          { $sample: { size: 1 } },
+        ]);
+
+        if (randomPoems.length === 0) {
+          return "No relevant data found in the database.";
+        }
+
+        const randomPoem = randomPoems[0];
+        console.log(
+          `Retrieved random poem: "${randomPoem.title}" by ${randomPoem.author}`
+        );
+
+        // Format the poem data
+        let poemContext = "RANDOM POEM FROM DATABASE:\n\n";
+        poemContext += `Title: ${randomPoem.title}\n`;
+        poemContext += `Author: ${randomPoem.author}\n`;
+        poemContext += `Dynasty: ${randomPoem.dynasty}\n`;
+        poemContext += "Lines:\n";
+
+        randomPoem.lines.forEach((line: TLine, lineIndex: number) => {
+          poemContext += `  ${lineIndex + 1}. ${line.chinese}\n`;
+          poemContext += `     Pinyin: ${line.pinyin}\n`;
+          poemContext += `     Translation: ${line.translation}\n`;
+          if (line.explanation) {
+            poemContext += `     Line Explanation: ${line.explanation}\n`;
+          }
+        });
+
+        poemContext += `Explanation: ${randomPoem.explanation}\n`;
+        poemContext += `Historical & Cultural Context: ${randomPoem.historicalCulturalContext}\n\n`;
+
+        // Always include JSON representation for random poem requests
+        poemContext += "JSON FORMAT:\n```json\n";
+        poemContext += JSON.stringify(randomPoem, null, 2);
+        poemContext += "\n```\n\n";
+        poemContext +=
+          "INSTRUCTION: If the user asked for JSON format, provide the data exactly as shown in the JSON FORMAT section above.";
+
+        return poemContext;
+      } catch (error) {
+        console.error("Error retrieving random poem:", error);
+        return "No relevant data found in the database.";
+      }
+    }
+
+    // If we reach here, try to do a keyword search as a fallback
     try {
       // Extract potential keywords from user message
       const keywords = this.extractKeywords(userMessage);
-      console.log("Extracted keywords:", keywords);
+      console.log("Extracted keywords for fallback search:", keywords);
 
       // Create a regex search condition for poem title, author, or dynasty
       const searchConditions = keywords.map((keyword) => ({
@@ -356,13 +363,13 @@ abstract class BaseAIModel implements IAIModel {
         console.log(
           "No specific poems found matching the query, returning general summary"
         );
-        return await this.getAllPoemSummaries();
+        return "No relevant data found in the database for your query.";
       }
 
       // Format poem data for context
       let poemContext = "POEM DATABASE CONTEXT:\n\n";
 
-      poems.forEach((poem, index) => {
+      poems.forEach((poem: TPoem, index: number) => {
         console.log(`Including poem: ${poem.title} by ${poem.author}`);
         poemContext += `POEM ${index + 1}:\n`;
         poemContext += `Title: ${poem.title}\n`;
@@ -370,7 +377,7 @@ abstract class BaseAIModel implements IAIModel {
         poemContext += `Dynasty: ${poem.dynasty}\n`;
         poemContext += "Lines:\n";
 
-        poem.lines.forEach((line, lineIndex) => {
+        poem.lines.forEach((line: TLine, lineIndex: number) => {
           poemContext += `  ${lineIndex + 1}. ${line.chinese}\n`;
           poemContext += `     Pinyin: ${line.pinyin}\n`;
           poemContext += `     Translation: ${line.translation}\n`;
@@ -387,7 +394,7 @@ abstract class BaseAIModel implements IAIModel {
       return poemContext;
     } catch (error) {
       console.error("Error fetching poem data:", error);
-      return "";
+      return "No relevant data found in the database.";
     }
   }
 
@@ -409,12 +416,7 @@ abstract class BaseAIModel implements IAIModel {
     // Match queries about database contents
     if (
       message.toLowerCase().includes("database") &&
-      (message.toLowerCase().includes("poem") ||
-        message.toLowerCase().includes("many") ||
-        message.toLowerCase().includes("how") ||
-        message.toLowerCase().includes("what") ||
-        message.toLowerCase().includes("list") ||
-        message.toLowerCase().includes("title") ||
+      (message.toLowerCase().includes("title") ||
         message.toLowerCase().includes("collection"))
     ) {
       console.log("Detected database inquiry about poems");

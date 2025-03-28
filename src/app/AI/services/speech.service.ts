@@ -18,11 +18,16 @@ interface SpeakOptions {
   voiceId: string;
   outputFileName: string;
   baseUrl?: string;
+  rate?: string;
 }
 
 // Initialize variables
 let serverBaseUrl = "";
 let availableVoices: TTSVoice[] = [];
+
+// Default Chinese voice
+const DEFAULT_VOICE_ID = "zh-CN-XiaoxiaoNeural";
+const DEFAULT_RATE = "-20%"; // Slower rate for better understanding
 
 /**
  * Convert markdown text to SSML for better human-like expressions
@@ -40,7 +45,7 @@ const convertToSSML = (text: string): string => {
 
   // Make a simple SSML document
   let ssml =
-    '<?xml version="1.0"?><speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="en-US">';
+    '<?xml version="1.0"?><speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="zh-CN">';
 
   // Add the text content
   ssml += text + "</speak>";
@@ -136,7 +141,7 @@ const getServerBaseUrl = (): string => {
 const speak = async (
   options: SpeakOptions
 ): Promise<{ audioUrl: string; audioData: string | null }> => {
-  const { text, voiceId, outputFileName } = options;
+  const { text, voiceId = DEFAULT_VOICE_ID, outputFileName, rate = DEFAULT_RATE } = options;
 
   // Create output path
   const outputDir = path.join(process.cwd(), "dist");
@@ -155,7 +160,11 @@ const speak = async (
   // Generate the audio file
   return new Promise((resolve, reject) => {
     try {
-      // Use Python edge-tts with plain text
+      // Format the rate parameter correctly
+      // edge-tts expects --rate="+0%" format
+      const rateArg = `--rate=${rate}`;
+
+      // Use Python edge-tts with plain text and rate parameter
       const ttsProcess = spawn("python", [
         "-m",
         "edge_tts",
@@ -165,6 +174,7 @@ const speak = async (
         plainText,
         "--write-media",
         outputPath,
+        rateArg
       ]);
 
       ttsProcess.stdout.on("data", (data) => {

@@ -50,7 +50,7 @@ const processMessage = catchAsync(
 
       // Generate TTS for the AI response
       const responseText = aiResponse.message.content;
-      const voiceId = options?.voiceId || "en-US-JennyNeural";
+      const voiceId = options?.voiceId || "zh-CN-XiaoxiaoNeural";
       const outputFileName = `tts-${aiResponse._id}.wav`;
 
       try {
@@ -257,7 +257,7 @@ const streamMessage = catchAsync(
 
       // Generate TTS after streaming is complete
       if (messageId && completeContent) {
-        const voiceId = options?.voiceId || "en-US-JennyNeural";
+        const voiceId = options?.voiceId || "zh-CN-XiaoxiaoNeural";
         const outputFileName = `tts-${messageId}.wav`;
 
         // Get the server base URL for audio references
@@ -447,7 +447,7 @@ async function generateAIResponse(
 
     // Generate TTS for the response
     try {
-      const voiceId = options?.voiceId || "en-US-JennyNeural";
+      const voiceId = options?.voiceId || "zh-CN-XiaoxiaoNeural";
       const outputFileName = `tts-${response._id}.wav`;
 
       // Generate TTS and attach to response

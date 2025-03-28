@@ -12,7 +12,7 @@ const testTTS = catchAsync(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       // Get text from request
-      const { text, voiceId = "en-US-JennyNeural" } = req.body;
+      const { text, voiceId = "zh-CN-XiaoxiaoNeural" } = req.body;
 
       if (!text) {
         res.status(httpStatus.BAD_REQUEST).json({
