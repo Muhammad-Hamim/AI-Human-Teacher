@@ -27,6 +27,7 @@ import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import AudioAnalyzer from "./AudioAnalyzer";
 import SpeechWaveform from "./SpeechWaveform";
+import TeacherAnimation from "./TeacherAnimation";
 
 // Type declarations for browser APIs
 declare global {
@@ -501,7 +502,21 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
 
         {/* Scrollable conversation area */}
         <div className="flex flex-col bg-gray-900 overflow-y-auto flex-grow">
-          <div className="p-6 space-y-6">
+          <div className="p-6 space-y-6 flex flex-col">
+            {/* Add teacher animation */}
+            <div className="flex justify-center mb-4">
+              <div className="relative">
+                <TeacherAnimation isSpeaking={isSpeaking} />
+                <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 bg-gray-800 px-3 py-1 rounded-full text-xs text-gray-300 shadow-md border border-gray-700 whitespace-nowrap">
+                  {isSpeaking ? 
+                    "AI Teacher is speaking..." : 
+                    isListening ? 
+                      "Listening to you..." : 
+                      "Ready"}
+                </div>
+              </div>
+            </div>
+
             {/* Error message */}
             {error && (
               <div className="bg-red-900/20 border border-red-800 text-red-300 p-4 rounded-lg">
