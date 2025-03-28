@@ -12,8 +12,10 @@ import {
   CheckCircle,
   XCircle,
   RefreshCw,
+  AlertTriangle,
 } from "lucide-react";
 import { pinyin } from "pinyin-pro";
+import { compareText } from "@/utils/compareText";
 
 interface VoiceRecognitionProps {
   poem: any;
@@ -27,6 +29,8 @@ export default function VoiceRecognition({ poem }: VoiceRecognitionProps) {
   const [feedback, setFeedback] = useState<string | null>(null);
   const [accuracy, setAccuracy] = useState<number>(0);
   const [practiceMode, setPracticeMode] = useState<"line" | "full">("line");
+  const [unmatchedChars, setUnmatchedChars] = useState<string[]>([]);
+  const [currentTranscriptText, setCurrentTranscriptText] = useState<string>("");
 
   const recognitionRef = useRef<any>(null);
 
@@ -39,27 +43,25 @@ export default function VoiceRecognition({ poem }: VoiceRecognitionProps) {
 
     const SpeechRecognition = window.webkitSpeechRecognition || window.SpeechRecognition;
     recognitionRef.current = new SpeechRecognition();
-    recognitionRef.current.continuous = false;
+    recognitionRef.current.continuous = true;
     recognitionRef.current.interimResults = true;
     recognitionRef.current.lang = "zh-CN";
 
     recognitionRef.current.onresult = (event: any) => {
-      const result = event.results[0];
+      const result = event.results[event.results.length - 1];
       const transcriptText = result[0].transcript;
       setTranscript(transcriptText);
-      if (result.isFinal) {
-        stopListening();
-        evaluateRecitation(transcriptText);
-      }
+      setCurrentTranscriptText(transcriptText);
     };
 
     recognitionRef.current.onerror = (event: any) => {
       console.error("Speech recognition error", event.error);
       setFeedback(`Error: ${event.error}`);
-      stopListening();
+      stopListening(true);
     };
 
     recognitionRef.current.onend = () => {
+      console.log("Speech recognition ended");
       setIsListening(false);
     };
 
@@ -80,101 +82,136 @@ export default function VoiceRecognition({ poem }: VoiceRecognitionProps) {
     setTranscript("");
     setFeedback(null);
     setAccuracy(0);
+    setUnmatchedChars([]);
+    setCurrentTranscriptText("");
     if (recognitionRef.current) {
-      recognitionRef.current.start();
-      setIsListening(true);
-    }
-  };
-
-  // Stop listening
-  const stopListening = () => {
-    if (recognitionRef.current) {
-      recognitionRef.current.stop();
-      setIsListening(false);
-    }
-  };
-
-  // Convert Pinyin with tone marks to tone numbers
-  const convertToToneNumber = (pinyinWithMark: string): string => {
-    const toneMap: { [key: string]: string } = {
-      'ā': 'a1', 'á': 'a2', 'ǎ': 'a3', 'à': 'a4',
-      'ē': 'e1', 'é': 'e2', 'ě': 'e3', 'è': 'e4',
-      'ī': 'i1', 'í': 'i2', 'ǐ': 'i3', 'ì': 'i4',
-      'ō': 'o1', 'ó': 'o2', 'ǒ': 'o3', 'ò': 'o4',
-      'ū': 'u1', 'ú': 'u2', 'ǔ': 'u3', 'ù': 'u4',
-      'ǖ': 'v1', 'ǘ': 'v2', 'ǚ': 'v3', 'ǜ': 'v4',
-    };
-
-    let base = '';
-    let tone = '5'; // Neutral tone default
-    for (const char of pinyinWithMark) {
-      if (toneMap[char]) {
-        base += toneMap[char][0];
-        tone = toneMap[char][1];
-      } else if (/[a-z]/i.test(char)) {
-        base += char;
+      try {
+        recognitionRef.current.start();
+        setIsListening(true);
+        console.log("Started listening");
+      } catch (error) {
+        console.error("Error starting speech recognition:", error);
+        setFeedback(`Error starting speech recognition: ${error}`);
       }
     }
-    return base + tone;
   };
 
-  // Evaluate recitation
+  // Stop listening and optionally evaluate
+  const stopListening = (shouldEvaluate = true) => {
+    if (recognitionRef.current && isListening) {
+      try {
+        recognitionRef.current.stop();
+        console.log("Stopped listening");
+        
+        // Only evaluate if we should and have transcript text
+        if (shouldEvaluate && currentTranscriptText) {
+          console.log("Evaluating transcript:", currentTranscriptText);
+          setTimeout(() => {
+            evaluateRecitation(currentTranscriptText);
+          }, 100); // Small delay to ensure recognition has fully stopped
+        }
+      } catch (error) {
+        console.error("Error stopping speech recognition:", error);
+      }
+    }
+  };
 
-const evaluateRecitation = (transcriptText: string) => {
-  let targetChinese = "";
+  // Toggle listening state
+  const toggleListening = () => {
+    if (isListening) {
+      stopListening(true); // Stop and evaluate
+    } else {
+      startListening();
+    }
+  };
 
-  if (practiceMode === "line" && selectedLine) {
-    targetChinese = selectedLine.chinese;
-  } else if (practiceMode === "full") {
-    targetChinese = poem.lines.map((line: any) => line.chinese).join("");
-  }
+  // Evaluate recitation using compareText utility
+  const evaluateRecitation = (transcriptText: string) => {
+    let targetChinese = "";
+    
+    // Ensure we have the current practice mode and selected line
+    const currentPracticeMode = practiceMode;
+    const currentSelectedLine = selectedLine;
+    
+    console.log('practiceMode:', currentPracticeMode);
+    console.log('transcriptText:', transcriptText);
+    
+    // Get target text based on practice mode
+    if (currentPracticeMode === "line" && currentSelectedLine) {
+      console.log('selectedLine:', currentSelectedLine);
+      targetChinese = currentSelectedLine.chinese;
+    } else if (currentPracticeMode === "full") {
+      targetChinese = poem.lines.map((line: any) => line.chinese).join("");
+    } else {
+      console.error('No valid practice mode or selected line');
+      return;
+    }
+    
+    console.log('targetChinese:', targetChinese);
+    
+    if (!targetChinese || targetChinese.trim() === "") {
+      console.error('Target Chinese text is empty');
+      setFeedback("Error: Could not find the target text to compare with. Please select a line to practice.");
+      return;
+    }
 
-  // Convert to pinyin with tone numbers
-  const targetPinyin = pinyin(targetChinese, { toneType: 'num', type: 'array' });
-  const userPinyin = pinyin(transcriptText, { toneType: 'num', type: 'array' });
+    // Use the compareText utility to compare user's speech with target text
+    try {
+      const comparisonResult = compareText(targetChinese, transcriptText);
+      console.log('Comparison result:', comparisonResult);
+      
+      // Set accuracy based on the comparison result
+      setAccuracy(Math.round(comparisonResult.matchPercentage));
+      
+      // Store the unmatched characters for feedback
+      setUnmatchedChars(comparisonResult.unmatchedCharacters);
+      
+      // Generate feedback based on the match percentage
+      generateFeedback(comparisonResult.matchPercentage, comparisonResult.unmatchedCharacters);
+    } catch (error) {
+      console.error('Error comparing text:', error);
+      setFeedback(`Error comparing your speech: ${error}`);
+    }
+  };
 
-  let toneScore = 0;
-  let pronunciationScore = 0;
-  const maxLength = Math.max(targetPinyin.length, userPinyin.length);
+  // Generate detailed feedback based on match percentage
+  const generateFeedback = (matchPercentage: number, unmatchedChars: string[]) => {
+    let feedbackMessage = "";
 
-  for (let i = 0; i < maxLength; i++) {
-    const target = targetPinyin[i] || '';
-    const user = userPinyin[i] || '';
+    // Determine feedback based on match percentage
+    if (matchPercentage >= 90) {
+      feedbackMessage = "Excellent! Your pronunciation is nearly perfect. 太棒了！";
+    } else if (matchPercentage >= 75) {
+      feedbackMessage = "Great job! Your pronunciation is very good with only a few minor errors.";
+    } else if (matchPercentage >= 60) {
+      feedbackMessage = "Good effort. Your pronunciation needs some improvement in certain areas.";
+    } else if (matchPercentage >= 40) {
+      feedbackMessage = "You're making progress, but there are several pronunciation errors to work on.";
+    } else {
+      feedbackMessage = "Let's keep practicing. Try focusing on pronouncing each character clearly.";
+    }
 
-    // Tone comparison
-    const targetTone = target.replace(/\D/g, '') || '5';
-    const userTone = user.replace(/\D/g, '') || '5';
-    if (targetTone === userTone) toneScore++;
+    // Add specific feedback about unmatched characters if there are any
+    if (unmatchedChars.length > 0) {
+      // Limit to showing just a few of the unmatched characters for clarity
+      const displayChars = unmatchedChars.slice(0, 3);
+      if (unmatchedChars.length > 3) {
+        feedbackMessage += ` Pay particular attention to characters like "${displayChars.join('", "')}", and ${unmatchedChars.length - 3} others.`;
+      } else {
+        feedbackMessage += ` Pay particular attention to characters like "${displayChars.join('", "')}".`;
+      }
+    }
 
-    // Pronunciation comparison
-    const targetBase = target.replace(/\d/g, '');
-    const userBase = user.replace(/\d/g, '');
-    if (targetBase === userBase) pronunciationScore++;
-  }
+    // Add match percentage information
+    feedbackMessage += ` Overall accuracy: ${Math.round(matchPercentage)}%.`;
 
-  const toneAccuracy = (toneScore / targetPinyin.length) * 100;
-  const pronAccuracy = (pronunciationScore / targetPinyin.length) * 100;
-  const lengthPenalty = Math.abs(targetPinyin.length - userPinyin.length) * 5;
-  
-  const totalScore = Math.max(
-    (toneAccuracy * 0.7) + (pronAccuracy * 0.3) - lengthPenalty,
-    0
-  );
+    // Add suggestions for improvement
+    if (matchPercentage < 75) {
+      feedbackMessage += " Try listening to the pronunciation again and practice with slower speech.";
+    }
 
-  setAccuracy(Math.round(totalScore));
-  
-  // Generate detailed feedback
-  let feedback = [];
-  if (totalScore >= 90) feedback.push("Excellent tone mastery!");
-  else if (totalScore >= 70) feedback.push("Good, but check some tones");
-  else feedback.push("Needs significant improvement");
-
-  if (lengthPenalty > 0) {
-    feedback.push(`Wrong character count (Expected ${targetPinyin.length}, got ${userPinyin.length})`);
-  }
-
-  setFeedback(feedback.join('. '));
-};
+    setFeedback(feedbackMessage);
+  };
 
   // Speak text
   const speak = (text: string) => {
@@ -198,6 +235,31 @@ const evaluateRecitation = (transcriptText: string) => {
     setTranscript("");
     setFeedback(null);
     setAccuracy(0);
+    setUnmatchedChars([]);
+  };
+
+  // Get color class based on accuracy
+  const getAccuracyColorClass = (accuracy: number) => {
+    if (accuracy >= 90) return "bg-green-900 border-green-700 text-green-200";
+    if (accuracy >= 70) return "bg-yellow-900 border-yellow-700 text-yellow-200";
+    if (accuracy >= 50) return "bg-orange-900 border-orange-700 text-orange-200";
+    return "bg-red-900 border-red-700 text-red-200";
+  };
+
+  // Get icon based on accuracy
+  const getAccuracyIcon = (accuracy: number) => {
+    if (accuracy >= 90) return <CheckCircle size={16} className="text-green-400" />;
+    if (accuracy >= 70) return <CheckCircle size={16} className="text-yellow-400" />;
+    if (accuracy >= 50) return <AlertTriangle size={16} className="text-orange-400" />;
+    return <XCircle size={16} className="text-red-400" />;
+  };
+  
+  // Get progress bar color
+  const getProgressColor = (accuracy: number) => {
+    if (accuracy >= 90) return "bg-green-500";
+    if (accuracy >= 70) return "bg-yellow-500";
+    if (accuracy >= 50) return "bg-orange-500";
+    return "bg-red-500";
   };
 
   return (
@@ -263,13 +325,13 @@ const evaluateRecitation = (transcriptText: string) => {
                 <Button
                   variant="outline"
                   className="w-full"
-                  onClick={() =>
-                    speak(
-                      practiceMode === "line"
-                        ? selectedLine.chinese
-                        : poem.lines.map((line: any) => line.chinese).join("")
-                    )
-                  }
+                  onClick={() => {
+                    if (practiceMode === "line" && selectedLine) {
+                      speak(selectedLine.chinese);
+                    } else if (practiceMode === "full") {
+                      speak(poem.lines.map((line: any) => line.chinese).join(""));
+                    }
+                  }}
                 >
                   <Volume2 size={16} className="mr-2" />
                   Listen to Pronunciation
@@ -303,7 +365,7 @@ const evaluateRecitation = (transcriptText: string) => {
                   <p className="text-lg text-gray-100">{transcript}</p>
                 ) : (
                   <p className="text-gray-400 italic">
-                    {isListening ? "Listening..." : "Press the microphone button and speak"}
+                    {isListening ? "Listening... Speak now and click the mic button when done" : "Press the microphone button and speak"}
                   </p>
                 )}
                 {isListening && (
@@ -321,52 +383,59 @@ const evaluateRecitation = (transcriptText: string) => {
               </div>
               {feedback && (
                 <div
-                  className={`border rounded-md p-4 ${
-                    accuracy >= 70
-                      ? "bg-green-900 border-green-700"
-                      : accuracy >= 50
-                      ? "bg-yellow-900 border-yellow-700"
-                      : "bg-red-900 border-red-700"
-                  }`}
+                  className={`border rounded-md p-4 ${getAccuracyColorClass(accuracy)}`}
                 >
                   <div className="flex items-center gap-2 mb-2">
                     <h3 className="text-sm font-medium text-gray-200">Feedback:</h3>
-                    {accuracy >= 70 ? (
-                      <CheckCircle size={16} className="text-green-400" />
-                    ) : (
-                      <XCircle size={16} className="text-red-400" />
-                    )}
+                    {getAccuracyIcon(accuracy)}
                   </div>
                   <p className="text-gray-200 whitespace-pre-line">{feedback}</p>
+                  
+                  {unmatchedChars.length > 0 && (
+                    <div className="mt-3 p-2 border border-gray-700/50 rounded-md bg-gray-800/60">
+                      <p className="text-xs font-medium mb-1 text-gray-300">Characters to practice:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {unmatchedChars.slice(0, 8).map((char, idx) => (
+                          <Badge key={idx} variant="outline" className="bg-gray-700/80">
+                            {char}
+                          </Badge>
+                        ))}
+                        {unmatchedChars.length > 8 && (
+                          <Badge variant="outline" className="bg-gray-700/80">
+                            +{unmatchedChars.length - 8} more
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  
                   <div className="mt-4 space-y-1">
                     <div className="flex justify-between text-sm text-gray-300">
                       <span>Accuracy</span>
                       <span>{accuracy}%</span>
                     </div>
-                    <Progress value={accuracy} className="h-2" />
+                    <Progress 
+                      value={accuracy} 
+                      className="h-2" 
+                      style={{
+                        ['--progress-background' as any]: getProgressColor(accuracy)
+                      }}
+                    />
                   </div>
                 </div>
               )}
               <div className="flex justify-center pt-4">
-                {isListening ? (
-                  <Button
-                    variant="destructive"
-                    size="lg"
-                    className="rounded-full h-16 w-16"
-                    onClick={stopListening}
-                  >
-                    <MicOff size={24} />
-                  </Button>
-                ) : (
-                  <Button
-                    variant="default"
-                    size="lg"
-                    className="rounded-full h-16 w-16"
-                    onClick={startListening}
-                  >
-                    <Mic size={24} />
-                  </Button>
-                )}
+                <Button
+                  variant={isListening ? "destructive" : "default"}
+                  size="lg"
+                  className="rounded-full h-16 w-16"
+                  onClick={toggleListening}
+                >
+                  {isListening ? <MicOff size={24} /> : <Mic size={24} />}
+                </Button>
+              </div>
+              <div className="text-center text-sm text-gray-400">
+                {isListening ? "Click the mic button again when you're done speaking" : "Click the mic button and start speaking"}
               </div>
               {feedback && (
                 <div className="flex justify-center">
@@ -376,6 +445,7 @@ const evaluateRecitation = (transcriptText: string) => {
                       setTranscript("");
                       setFeedback(null);
                       setAccuracy(0);
+                      setUnmatchedChars([]);
                     }}
                   >
                     <RefreshCw size={16} className="mr-2" />

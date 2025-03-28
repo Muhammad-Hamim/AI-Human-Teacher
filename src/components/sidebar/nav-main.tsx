@@ -1,8 +1,6 @@
 import {
   BookOpen,
   ChevronRight,
-  MessageCircle,
-  Pencil,
   Video,
 } from "lucide-react";
 
@@ -39,7 +37,7 @@ export function NavMain() {
         },
         {
           title: "Generate Interactive Poem",
-          url: "#",
+          url: "/generate-interactive-poem",
         },
       ],
     },

@@ -9,6 +9,7 @@ import themeReducer from "./features/interactivePoem/themeSlice";
 import voiceChatReducer from "./features/voiceChat/voiceChatSlice";
 import poemVideoReducer from "./features/poemVideo/poemVideoSlice";
 import { poemVideoApi } from "./features/poemVideo/poemVideoApi";
+import { poemsApi } from "./features/poems/poemsApi";
 
 // Create an object with all API reducers
 const apiReducers = {
@@ -16,6 +17,7 @@ const apiReducers = {
   [chatHistoryApi.reducerPath]: chatHistoryApi.reducer,
   [deepSeekApi.reducerPath]: deepSeekApi.reducer,
   [poemVideoApi.reducerPath]: poemVideoApi.reducer,
+  [poemsApi.reducerPath]: poemsApi.reducer,
 };
 
 // Create an array of all API middleware
@@ -24,6 +26,7 @@ const apiMiddleware = [
   chatHistoryApi.middleware,
   deepSeekApi.middleware,
   poemVideoApi.middleware,
+  poemsApi.middleware,
 ];
 
 export const store = configureStore({
