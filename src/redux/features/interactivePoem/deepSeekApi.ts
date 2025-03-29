@@ -56,6 +56,27 @@ export interface StrokeAnimationRequest {
   character: string;
 }
 
+export interface PoemInsightsRequest {
+  poemId: string;
+}
+
+export interface PoemInsightsResponse {
+  success: boolean;
+  message: string;
+  data: {
+    poem: {
+      id: string;
+      title: string;
+      author: string;
+      dynasty: string;
+    };
+    culturalInsights: {
+      text: string;
+      generatedAt: string;
+    };
+  };
+}
+
 export const deepSeekApi = createApi({
   reducerPath: "deepSeekApi",
   baseQuery: fetchBaseQuery({
@@ -124,6 +145,17 @@ export const deepSeekApi = createApi({
     getCharacterStrokeAnimation: builder.query<any, StrokeAnimationRequest>({
       query: (request) => ({
         url: "stroke-animation",
+        method: "POST",
+        body: request,
+      }),
+    }),
+
+    getPoemInsights: builder.mutation<
+      PoemInsightsResponse,
+      PoemInsightsRequest
+    >({
+      query: (request) => ({
+        url: "ai/poem-insights/generate",
         method: "POST",
         body: request,
       }),
@@ -409,11 +441,14 @@ export const deepSeekApi = createApi({
       }
     ),
     getPoemNarration: builder.mutation({
-      query: ({ poemId }) => ({
-        url: "/ai/poem-narration/generate",
-        method: "POST",
-        body: { poemId },
-      }),
+      query: ({ poemId }) => {
+        console.log(poemId);
+        return {
+          url: "/ai/poem-narration/generate",
+          method: "POST",
+          body: { poemId },
+        };
+      },
     }),
   }),
 });
@@ -434,4 +469,5 @@ export const {
   useGetMockKnowledgeBaseAnswerMutation,
   useGetMockCreativeWritingQuery,
   useGetPoemNarrationMutation,
+  useGetPoemInsightsMutation,
 } = deepSeekApi;

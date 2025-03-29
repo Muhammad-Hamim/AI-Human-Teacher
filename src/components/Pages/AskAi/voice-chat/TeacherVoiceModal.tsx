@@ -11,6 +11,7 @@ import {
   VolumeX,
   StopCircle,
   Loader2,
+  Globe,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,6 +21,8 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { useRequestAiResponseMutation } from "@/redux/features/chat/chatApi";
 import { useParams } from "react-router";
 import { useCreateChatMutation } from "@/redux/features/chatHistory/chatHistoryApi";
@@ -45,6 +48,9 @@ interface TeacherVoiceModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
+
+// Available language options
+type Language = "zh-CN" | "en-US";
 
 // Add custom styles for markdown content
 const markdownComponents = {
@@ -127,6 +133,8 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
   const [processingQuery, setProcessingQuery] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isBrowserSupported, setIsBrowserSupported] = useState(true);
+  // Add language state - default to Chinese
+  const [language, setLanguage] = useState<Language>("zh-CN");
 
   // Check browser compatibility
   useEffect(() => {
@@ -150,8 +158,10 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
       recognitionRef.current = new SpeechRecognition();
       recognitionRef.current.continuous = true;
       recognitionRef.current.interimResults = true;
+      // Set initial language
+      recognitionRef.current.lang = language;
 
-    recognitionRef.current.onresult = (event: any) => {
+      recognitionRef.current.onresult = (event: any) => {
         const result = event.results[event.results.length - 1];
         const transcript = result[0].transcript;
         setTranscript(transcript);
@@ -182,6 +192,29 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
     }
   }, []);
 
+  // Update recognition language when language changes
+  useEffect(() => {
+    if (recognitionRef.current) {
+      recognitionRef.current.lang = language;
+      console.log(`Speech recognition language set to: ${language}`);
+    }
+  }, [language]);
+
+  // Handle language change
+  const handleLanguageChange = (checked: boolean) => {
+    // Stop listening if active
+    if (isListening) {
+      stopListening();
+    }
+
+    // Set the new language based on the toggle
+    const newLanguage: Language = checked ? "en-US" : "zh-CN";
+    setLanguage(newLanguage);
+    toast.info(
+      `Language changed to ${newLanguage === "zh-CN" ? "Chinese" : "English"}`
+    );
+  };
+
   // Handle audio analysis
   const handleAudioAnalysis = (intensity: number) => {
     setSpeechIntensity(intensity);
@@ -206,7 +239,9 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
       setIsListening(true);
       setTranscript(""); // Clear previous transcript
       recognitionRef.current?.start();
-      toast.success("Voice chat started");
+      toast.success(
+        `Voice chat started (${language === "zh-CN" ? "Chinese" : "English"})`
+      );
     } catch (error) {
       console.error("Error starting speech recognition:", error);
       toast.error("Error starting voice chat");
@@ -254,9 +289,15 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
       setAiResponse("");
 
       try {
+        // Add language context to the prompt
+        const contextualPrompt =
+          language === "zh-CN"
+            ? `[用户使用中文] ${query}`
+            : `[User is speaking English] ${query}`;
+
         // Use requestAiResponse instead of streamAiResponse
         const response = await requestAiResponse({
-          prompt: query,
+          prompt: contextualPrompt,
           chatId: currentChatId as string,
         }).unwrap();
 
@@ -475,29 +516,45 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
               Speak your query and get AI responses with voice playback
             </DialogDescription>
           </div>
-          <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={toggleAudio}
+          <div className="flex items-center gap-3">
+            {/* Language toggle */}
+            <div className="flex items-center gap-2">
+              <Label
+                htmlFor="language-toggle"
+                className="text-xs text-gray-400 font-medium"
+              >
+                <Globe className="h-3 w-3 inline-block mr-1" />
+                {language === "zh-CN" ? "中文" : "English"}
+              </Label>
+              <Switch
+                id="language-toggle"
+                checked={language === "en-US"}
+                onCheckedChange={handleLanguageChange}
+                aria-label="Toggle language"
+              />
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleAudio}
               className="h-8 w-8 rounded-full hover:bg-gray-800 text-gray-400 hover:text-white"
               title={audioEnabled ? "Mute AI voice" : "Unmute AI voice"}
-              >
-                {audioEnabled ? (
-                    <Volume2 className="h-4 w-4" />
-                ) : (
-                  <VolumeX className="h-4 w-4" />
-                )}
-              </Button>
+            >
+              {audioEnabled ? (
+                <Volume2 className="h-4 w-4" />
+              ) : (
+                <VolumeX className="h-4 w-4" />
+              )}
+            </Button>
             <Button
               variant="ghost"
               size="icon"
               className="h-8 w-8 rounded-full hover:bg-gray-800 text-gray-400 hover:text-white"
               onClick={handleClose}
             >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
         </DialogHeader>
 
         {/* Scrollable conversation area */}
@@ -508,11 +565,13 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
               <div className="relative">
                 <TeacherAnimation isSpeaking={isSpeaking} />
                 <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 bg-gray-800 px-3 py-1 rounded-full text-xs text-gray-300 shadow-md border border-gray-700 whitespace-nowrap">
-                  {isSpeaking ? 
-                    "AI Teacher is speaking..." : 
-                    isListening ? 
-                      "Listening to you..." : 
-                      "Ready"}
+                  {isSpeaking
+                    ? "AI Teacher is speaking..."
+                    : isListening
+                    ? `Listening to you (${
+                        language === "zh-CN" ? "Chinese" : "English"
+                      })...`
+                    : "Ready"}
                 </div>
               </div>
             </div>
@@ -525,7 +584,7 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
                   For the best voice experience, please use a supported browser
                   like Chrome, Edge, or Safari.
                 </p>
-          </div>
+              </div>
             )}
 
             {/* Conversation area with transcript and AI response */}
@@ -548,6 +607,9 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
                             </span>
                           </div>
                           <p className="text-sm font-medium text-white">You</p>
+                          <span className="text-xs text-gray-400">
+                            ({language === "zh-CN" ? "Chinese" : "English"})
+                          </span>
                         </div>
                         <p className="text-gray-200">{transcript}</p>
                       </div>
@@ -560,7 +622,7 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
                   <div className="w-full h-12 mt-2">
                     <SpeechWaveform
                       isActive={isListening && !processingQuery && !isSpeaking}
-                intensity={speechIntensity}
+                      intensity={speechIntensity}
                       color="#3b82f6"
                       backgroundColor="rgba(30, 41, 59, 0.5)"
                       mode="user"
@@ -571,7 +633,7 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
                     />
                   </div>
                 )}
-            </div>
+              </div>
 
               {/* AI's response area */}
               <div className="relative h-auto">
@@ -599,12 +661,12 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
                           <Loader2 className="h-5 w-5 text-teal-500 animate-spin" />
                           <p className="text-gray-400">Thinking...</p>
                         </div>
-                </div>
+                      </div>
                     </motion.div>
-              )}
+                  )}
 
                   {/* AI response */}
-              {aiResponse && (
+                  {aiResponse && (
                     <motion.div
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -637,7 +699,7 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
                           )}
                         </div>
                         <div className="max-h-[50vh] ">
-                  {renderHighlightedResponse()}
+                          {renderHighlightedResponse()}
                         </div>
                       </div>
                     </motion.div>
@@ -654,8 +716,8 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
                       backgroundColor="rgba(17, 24, 39, 0.5)"
                       mode="ai"
                     />
-                </div>
-              )}
+                  </div>
+                )}
 
                 {/* Loading indicator */}
                 {processingQuery && !aiResponse && (
@@ -671,19 +733,19 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
                 )}
               </div>
             </div>
-            </div>
           </div>
+        </div>
 
         {/* Fixed controls section at bottom */}
         <div className="bg-gray-900 p-6 pt-2 border-t border-gray-800 flex-shrink-0">
           {/* Controls */}
           <div className="flex justify-center">
             <div className="flex items-center gap-4">
-                <motion.div
+              <motion.div
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                >
-                  <Button
+              >
+                <Button
                   variant={isListening ? "destructive" : "default"}
                   size="icon"
                   className={`rounded-full h-14 w-14 ${
@@ -701,8 +763,8 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
                   ) : (
                     <Mic className="h-6 w-6" />
                   )}
-                  </Button>
-                </motion.div>
+                </Button>
+              </motion.div>
             </div>
           </div>
 
@@ -710,14 +772,18 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
             {isListening &&
               !processingQuery &&
               !isSpeaking &&
-              "Speak now... Click the microphone button again when done."}
+              `Speak in ${
+                language === "zh-CN" ? "Chinese" : "English"
+              }... Click the microphone button again when done.`}
             {processingQuery && "Processing your request..."}
             {isSpeaking &&
               "AI is speaking... You can click the Stop button to interrupt."}
             {!isListening &&
               !processingQuery &&
               !isSpeaking &&
-              "Click the microphone to start speaking."}
+              `Click the microphone to start speaking in ${
+                language === "zh-CN" ? "Chinese" : "English"
+              }.`}
           </div>
         </div>
       </DialogContent>

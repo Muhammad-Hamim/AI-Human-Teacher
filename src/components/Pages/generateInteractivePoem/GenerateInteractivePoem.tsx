@@ -1,6 +1,17 @@
 import { useState, useRef, useEffect } from "react";
 import { useForm } from "react-hook-form";
-import { Search, Plus, BrainCircuit, Send, Mic, Book, List, HelpCircle, BookOpen, Bookmark } from "lucide-react";
+import {
+  Search,
+  Plus,
+  BrainCircuit,
+  Send,
+  Mic,
+  Book,
+  List,
+  HelpCircle,
+  BookOpen,
+  Bookmark,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
@@ -12,7 +23,10 @@ import {
   TooltipProvider,
 } from "@/components/ui/tooltip";
 import { motion } from "framer-motion";
-import { useGetPoemsQuery, useGetPoemByIdQuery } from "@/redux/features/poems/poemsApi";
+import {
+  useGetPoemsQuery,
+  useGetPoemByIdQuery,
+} from "@/redux/features/poems/poemsApi";
 import { Poem } from "@/redux/features/poems/poemsApi";
 import ThinkingAnimation from "../AskAi/Conversation/ThinkingAnimation";
 
@@ -21,7 +35,7 @@ type FormInputs = {
 };
 
 // Bot message types
-type MessageType = 'bot' | 'user' | 'poemList' | 'quickActions';
+type MessageType = "bot" | "user" | "poemList" | "quickActions";
 interface Message {
   type: MessageType;
   content: string;
@@ -29,7 +43,7 @@ interface Message {
 }
 
 // Quick action button types
-type ActionType = 'list' | 'browse' | 'random' | 'help';
+type ActionType = "list" | "browse" | "random" | "help";
 interface QuickAction {
   type: ActionType;
   label: string;
@@ -37,32 +51,36 @@ interface QuickAction {
   description: string;
 }
 
-const QuickActions = ({ onActionClick }: { onActionClick: (actionType: ActionType) => void }) => {
+const QuickActions = ({
+  onActionClick,
+}: {
+  onActionClick: (actionType: ActionType) => void;
+}) => {
   const actions: QuickAction[] = [
     {
-      type: 'list',
-      label: 'Show Poem List',
+      type: "list",
+      label: "Show Poem List",
       icon: <List className="h-4 w-4" />,
-      description: 'View a list of available poems'
+      description: "View a list of available poems",
     },
     {
-      type: 'browse',
-      label: 'Browse Collection',
+      type: "browse",
+      label: "Browse Collection",
       icon: <BookOpen className="h-4 w-4" />,
-      description: 'Explore all poems in our collection'
+      description: "Explore all poems in our collection",
     },
     {
-      type: 'random',
-      label: 'Random Poem',
+      type: "random",
+      label: "Random Poem",
       icon: <Bookmark className="h-4 w-4" />,
-      description: 'Study a randomly selected poem'
+      description: "Study a randomly selected poem",
     },
     {
-      type: 'help',
-      label: 'Help & Tips',
+      type: "help",
+      label: "Help & Tips",
       icon: <HelpCircle className="h-4 w-4" />,
-      description: 'Learn how to use this feature'
-    }
+      description: "Learn how to use this feature",
+    },
   ];
 
   return (
@@ -73,9 +91,7 @@ const QuickActions = ({ onActionClick }: { onActionClick: (actionType: ActionTyp
           onClick={() => onActionClick(action.type)}
           className="flex items-center gap-3 p-3 rounded-lg bg-gray-800/70 hover:bg-indigo-600/30 border border-gray-700 hover:border-indigo-500/50 transition-all text-left"
         >
-          <div className="bg-indigo-500/20 p-2 rounded-full">
-            {action.icon}
-          </div>
+          <div className="bg-indigo-500/20 p-2 rounded-full">{action.icon}</div>
           <div>
             <div className="text-sm font-medium text-white">{action.label}</div>
             <div className="text-xs text-gray-400">{action.description}</div>
@@ -96,8 +112,8 @@ const GenerateInteractivePoem = () => {
   const navigate = useNavigate();
 
   const { data: poemsData, isLoading: isPoemsLoading } = useGetPoemsQuery();
-  const { data: poemData } = useGetPoemByIdQuery(currentPoemId || "", { 
-    skip: !currentPoemId 
+  const { data: poemData } = useGetPoemByIdQuery(currentPoemId || "", {
+    skip: !currentPoemId,
   });
 
   const { register, handleSubmit, reset, watch } = useForm<FormInputs>({
@@ -133,33 +149,34 @@ const GenerateInteractivePoem = () => {
       setMessages([
         {
           type: "bot",
-          content: "Welcome to the Interactive Poem Generator! I can help you learn poems in an interactive way. Select an option below or type your request:"
+          content:
+            "Welcome to the Interactive Poem Generator! I can help you learn poems in an interactive way. Select an option below or type your request:",
         },
         {
           type: "quickActions",
-          content: ""
-        }
+          content: "",
+        },
       ]);
     }
   }, [messages]);
 
   const handleQuickAction = (actionType: ActionType) => {
     switch (actionType) {
-      case 'list':
+      case "list":
         processUserMessage("Show me a list of available poems");
         break;
-      case 'browse':
+      case "browse":
         processUserMessage("Browse poem collection");
         break;
-      case 'random':
+      case "random":
         handleRandomPoem();
         break;
-      case 'help':
-        setMessages(prev => [
+      case "help":
+        setMessages((prev) => [
           ...prev,
-          { 
-            type: "user", 
-            content: "I need help with using this feature" 
+          {
+            type: "user",
+            content: "I need help with using this feature",
           },
           {
             type: "bot",
@@ -171,8 +188,8 @@ Here are some tips to help you get started:
 • Click "Browse Collection" to view all poems in a gallery
 • Ask for recommendations based on themes or authors
 • Type "yes" after selecting a poem to start learning
-            `.trim()
-          }
+            `.trim(),
+          },
         ]);
         break;
     }
@@ -182,123 +199,160 @@ Here are some tips to help you get started:
     if (poemsData && poemsData.data.length > 0) {
       const randomIndex = Math.floor(Math.random() * poemsData.data.length);
       const randomPoem = poemsData.data[randomIndex];
-      
-      setMessages(prev => [
+
+      setMessages((prev) => [
         ...prev,
-        { 
-          type: "user", 
-          content: "Show me a random poem" 
+        {
+          type: "user",
+          content: "Show me a random poem",
         },
-        { 
-          type: "bot", 
-          content: `I've selected "${randomPoem.title}" by ${randomPoem.author} for you. Would you like to study this poem interactively? Type "yes" to proceed.`
-        }
+        {
+          type: "bot",
+          content: `I've selected "${randomPoem.title}" by ${randomPoem.author} for you. Would you like to study this poem interactively? Type "yes" to proceed.`,
+        },
       ]);
-      
+
       setCurrentPoemId(randomPoem._id);
     } else {
-      setMessages(prev => [
+      setMessages((prev) => [
         ...prev,
-        { 
-          type: "user", 
-          content: "Show me a random poem" 
+        {
+          type: "user",
+          content: "Show me a random poem",
         },
-        { 
-          type: "bot", 
-          content: "I couldn't find any poems in our collection. Please try again later or browse the collection to see if new poems have been added."
-        }
+        {
+          type: "bot",
+          content:
+            "I couldn't find any poems in our collection. Please try again later or browse the collection to see if new poems have been added.",
+        },
       ]);
     }
   };
 
   const processUserMessage = async (message: string) => {
     // Add user message to chat
-    setMessages(prev => [...prev, { type: "user", content: message }]);
-    
+    setMessages((prev) => [...prev, { type: "user", content: message }]);
+
     setIsThinking(true);
-    
+
     // Process message content
     const lowerMessage = message.toLowerCase();
-    
+
     // Check for poem collection request
-    if (lowerMessage.includes("collection") || lowerMessage.includes("show all") || lowerMessage.includes("browse")) {
+    if (
+      lowerMessage.includes("collection") ||
+      lowerMessage.includes("show all") ||
+      lowerMessage.includes("browse")
+    ) {
       setTimeout(() => {
-        setMessages(prev => [...prev, { 
-          type: "bot", 
-          content: "Taking you to the poem collection page where you can browse all available poems."
-        }]);
-        
+        setMessages((prev) => [
+          ...prev,
+          {
+            type: "bot",
+            content:
+              "Taking you to the poem collection page where you can browse all available poems.",
+          },
+        ]);
+
         setTimeout(() => {
-          navigate('/poem-collection');
+          navigate("/poem-collection");
         }, 1000);
       }, 800);
     }
     // Check for poem list request
-    else if (lowerMessage.includes("list") || lowerMessage.includes("available poems") || lowerMessage.includes("show me poems")) {
+    else if (
+      lowerMessage.includes("list") ||
+      lowerMessage.includes("available poems") ||
+      lowerMessage.includes("show me poems")
+    ) {
       if (isPoemsLoading) {
         setTimeout(() => {
-          setMessages(prev => [...prev, { 
-            type: "bot", 
-            content: "Fetching the list of poems, please wait a moment..."
-          }]);
+          setMessages((prev) => [
+            ...prev,
+            {
+              type: "bot",
+              content: "Fetching the list of poems, please wait a moment...",
+            },
+          ]);
         }, 800);
       } else if (poemsData && poemsData.data.length > 0) {
         setTimeout(() => {
-          setMessages(prev => [...prev, { 
-            type: "poemList", 
-            content: "Here are the available poems:",
-            poemList: poemsData.data
-          }]);
+          setMessages((prev) => [
+            ...prev,
+            {
+              type: "poemList",
+              content: "Here are the available poems:",
+              poemList: poemsData.data,
+            },
+          ]);
         }, 800);
       } else {
         setTimeout(() => {
-          setMessages(prev => [...prev, { 
-            type: "bot", 
-            content: "No poems found in the database. Please try again later."
-          }]);
+          setMessages((prev) => [
+            ...prev,
+            {
+              type: "bot",
+              content:
+                "No poems found in the database. Please try again later.",
+            },
+          ]);
         }, 800);
       }
     }
     // Check for specific poem request
-    else if (lowerMessage.includes("learn") || lowerMessage.includes("poem") || lowerMessage.includes("study")) {
+    else if (
+      lowerMessage.includes("learn") ||
+      lowerMessage.includes("poem") ||
+      lowerMessage.includes("study")
+    ) {
       // Check if it's a direct poem title
       const potentialPoemTitle = message.trim();
-      
+
       const matchingPoem = poemsData?.data.find(
-        poem => poem.title.toLowerCase() === potentialPoemTitle.toLowerCase()
+        (poem) => poem.title.toLowerCase() === potentialPoemTitle.toLowerCase()
       );
-      
+
       if (matchingPoem) {
         // Found a match
         setTimeout(() => {
-          setMessages(prev => [...prev, { 
-            type: "bot", 
-            content: `I found "${matchingPoem.title}" by ${matchingPoem.author}. Would you like to study this poem interactively? Type "yes" to proceed.`
-          }]);
+          setMessages((prev) => [
+            ...prev,
+            {
+              type: "bot",
+              content: `I found "${matchingPoem.title}" by ${matchingPoem.author}. Would you like to study this poem interactively? Type "yes" to proceed.`,
+            },
+          ]);
           setCurrentPoemId(matchingPoem._id);
         }, 800);
       } else {
         // No match found
         setTimeout(() => {
-          setMessages(prev => [...prev, { 
-            type: "bot", 
-            content: "I couldn't find that specific poem. Would you like to see a list of available poems? Type 'list' to see them."
-          }]);
+          setMessages((prev) => [
+            ...prev,
+            {
+              type: "bot",
+              content:
+                "I couldn't find that specific poem. Would you like to see a list of available poems? Type 'list' to see them.",
+            },
+          ]);
         }, 800);
       }
     }
     // Check for confirmation to proceed with the selected poem
     else if (lowerMessage.includes("yes") && currentPoemId) {
       setTimeout(() => {
-        setMessages(prev => [...prev, { 
-          type: "bot", 
-          content: "Great! Taking you to the interactive poem page now..."
-        }]);
-        
+        setMessages((prev) => [
+          ...prev,
+          {
+            type: "bot",
+            content: "Great! Taking you to the interactive poem page now...",
+          },
+        ]);
+
         // Navigate to the poem page with the selected poem data
         if (poemData) {
           setTimeout(() => {
-            navigate('/poem', { state: { poem: poemData.data } });
+            navigate(`/poem/${poemData.data._id}`);
           }, 1000);
         }
       }, 800);
@@ -306,13 +360,17 @@ Here are some tips to help you get started:
     // Handle general case
     else {
       setTimeout(() => {
-        setMessages(prev => [...prev, { 
-          type: "bot", 
-          content: "I'm here to help you explore and learn poems. You can ask to see a list of available poems, browse the poem collection, or specify a poem you'd like to study."
-        }]);
+        setMessages((prev) => [
+          ...prev,
+          {
+            type: "bot",
+            content:
+              "I'm here to help you explore and learn poems. You can ask to see a list of available poems, browse the poem collection, or specify a poem you'd like to study.",
+          },
+        ]);
       }, 800);
     }
-    
+
     setTimeout(() => {
       setIsThinking(false);
     }, 1000);
@@ -340,69 +398,73 @@ Here are some tips to help you get started:
     setMessages([
       {
         type: "bot",
-        content: "Welcome to the Interactive Poem Generator! I can help you learn poems in an interactive way. Select an option below or type your request:"
+        content:
+          "Welcome to the Interactive Poem Generator! I can help you learn poems in an interactive way. Select an option below or type your request:",
       },
       {
         type: "quickActions",
-        content: ""
-      }
+        content: "",
+      },
     ]);
     setCurrentPoemId(null);
   };
 
   const handlePoemSelection = (poemId: string) => {
-    const selectedPoem = poemsData?.data.find(poem => poem._id === poemId);
-    
+    const selectedPoem = poemsData?.data.find((poem) => poem._id === poemId);
+
     if (selectedPoem) {
       setCurrentPoemId(poemId);
-      setMessages(prev => [...prev, { 
-        type: "bot", 
-        content: `You've selected "${selectedPoem.title}" by ${selectedPoem.author}. Would you like to study this poem interactively? Type "yes" to proceed.`
-      }]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          type: "bot",
+          content: `You've selected "${selectedPoem.title}" by ${selectedPoem.author}. Would you like to study this poem interactively? Type "yes" to proceed.`,
+        },
+      ]);
     }
   };
 
   const handleViewCollection = () => {
-    navigate('/poem-collection');
+    navigate("/poem-collection");
   };
 
   // Render different message types
   const renderMessage = (message: Message, index: number) => {
     switch (message.type) {
-      case 'user':
+      case "user":
         return (
-          <div 
-            key={index} 
+          <div
+            key={index}
             className="bg-indigo-500/10 border border-indigo-500/20 rounded-lg p-4 mb-4 ml-auto max-w-[80%]"
           >
             <p className="text-gray-200">{message.content}</p>
           </div>
         );
-      case 'bot':
+      case "bot":
         return (
-          <div 
-            key={index} 
+          <div
+            key={index}
             className="bg-gray-800/50 border border-gray-700 rounded-lg p-4 mb-4 mr-auto max-w-[80%]"
           >
             <p className="text-gray-200">{message.content}</p>
           </div>
         );
-      case 'quickActions':
+      case "quickActions":
         return (
           <div key={index} className="mb-6 mr-auto">
             <QuickActions onActionClick={handleQuickAction} />
           </div>
         );
-      case 'poemList':
+      case "poemList":
         return (
-          <div 
-            key={index} 
+          <div
+            key={index}
             className="bg-gray-800/50 border border-gray-700 rounded-lg p-4 mb-4 mr-auto max-w-[80%]"
           >
             <p className="text-gray-200 mb-2">{message.content}</p>
             <div className="grid gap-2">
               {message.poemList?.map((poem) => (
-                <div 
+                <div
                   key={poem._id}
                   onClick={() => handlePoemSelection(poem._id)}
                   className="p-2 rounded-md bg-gray-700/50 hover:bg-indigo-500/20 cursor-pointer transition-colors border border-gray-600"
