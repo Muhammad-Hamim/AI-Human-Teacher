@@ -1,9 +1,10 @@
 import { AIFactory } from "./aifactory/AIFactory";
+import VoiceRoutes from "./voice/voice.route";
 import ChatRoutes from "./chat/chat.route";
 import ChatService from "./chat/chat.service";
 import { VoiceService } from "./voice/voice.service";
-import VoiceRoutes from "./voice/voice.route";
 import SpeechService from "./services/speech.service";
+import { PoemNarrationRoutes } from "./edgetts/poem-narration.route";
 import TTSTestRoutes from "./edgetts/tts-test.route";
 
 // Export all AI components
@@ -14,6 +15,7 @@ export {
   VoiceService,
   VoiceRoutes,
   SpeechService,
+  PoemNarrationRoutes,
   TTSTestRoutes,
 };
 

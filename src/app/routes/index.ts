@@ -4,7 +4,9 @@ import { UserRouter } from "../Models/user/user.route";
 import { PoemRouter } from "../Models/poem/poem.route";
 import { ChatRouter } from "../Models/chat/chat.route";
 import { MessageRouter } from "../Models/message/message.route";
-import { ChatRoutes, VoiceRoutes, TTSTestRoutes } from "../AI";
+import { ChatRoutes, PoemNarrationRoutes } from "../AI";
+import VoiceRoutes from "../AI/voice/voice.route";
+import TTSTestRoutes from "../AI/edgetts/tts-test.route";
 
 const router = Router();
 
@@ -40,6 +42,10 @@ const moduleRoutes = [
   {
     path: "/ai/tts",
     route: TTSTestRoutes,
+  },
+  {
+    path: "/ai/poem-narration",
+    route: PoemNarrationRoutes,
   },
 ];
 

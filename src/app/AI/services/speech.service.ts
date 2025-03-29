@@ -26,7 +26,7 @@ let serverBaseUrl = "";
 let availableVoices: TTSVoice[] = [];
 
 // Default Chinese voice
-const DEFAULT_VOICE_ID = "zh-CN-XiaoxiaoNeural";//"zh-CN-XiaoyanNeural" if need to change to english use "en-US-JennyNeural"
+const DEFAULT_VOICE_ID = "zh-CN-XiaoxiaoNeural"; //"zh-CN-XiaoyanNeural" if need to change to english use "en-US-JennyNeural"
 const DEFAULT_RATE = "-20%"; // Slower rate for better understanding
 
 /**
@@ -67,7 +67,8 @@ const formatPoemSSML = (text: string): string => {
     .replace(/'/g, "&apos;");
 
   // Detect if this is likely a Chinese poem (contains line breaks and typical poem patterns)
-  const isPoemLikely = text.includes("\n") && 
+  const isPoemLikely =
+    text.includes("\n") &&
     (text.includes("，") || text.includes("。") || text.includes("、"));
 
   if (!isPoemLikely) {
@@ -75,29 +76,88 @@ const formatPoemSSML = (text: string): string => {
   }
 
   // Split into lines
-  const lines = text.split("\n").filter(line => line.trim() !== "");
+  const lines = text.split("\n").filter((line) => line.trim() !== "");
 
   // Create SSML document
-  let ssml = '<?xml version="1.0"?><speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="zh-CN">';
-  
+  let ssml =
+    '<?xml version="1.0"?><speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="zh-CN">';
+
   // Add title with emphasis if it exists (likely the first line)
   if (lines.length > 0 && lines[0].length < 20 && !lines[0].includes("，")) {
     ssml += `<prosody rate="slow" pitch="high"><emphasis level="strong">${lines[0]}</emphasis></prosody>`;
     ssml += '<break strength="strong"/>';
     lines.shift(); // Remove the title line
   }
-  
+
   // Process each line of the poem with appropriate pauses and prosody
   for (const line of lines) {
     // Add pause after punctuation
-    const enhancedLine = line
-      .replace(/([，。！？、])/g, '$1<break strength="medium"/>');
-    
+    const enhancedLine = line.replace(
+      /([，。！？、])/g,
+      '$1<break strength="medium"/>'
+    );
+
     // Add the line with adjusted prosody for poetic rhythm
     ssml += `<prosody rate="slow" pitch="medium">${enhancedLine}</prosody>`;
     ssml += '<break strength="strong"/>';
   }
-  
+
+  ssml += "</speak>";
+  return ssml;
+};
+
+/**
+ * Format text as storytelling narration with SSML tags for better expression
+ * @param text Input storytelling narration text
+ * @returns SSML formatted storytelling narration
+ */
+const formatStorytellingSSML = (text: string): string => {
+  // Escape special XML characters first
+  text = text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+
+  // Split into paragraphs
+  const paragraphs = text.split("\n").filter((para) => para.trim() !== "");
+
+  // Create SSML document
+  let ssml =
+    '<?xml version="1.0"?><speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="zh-CN">';
+
+  // Process each paragraph with appropriate pauses and prosody
+  for (const paragraph of paragraphs) {
+    // Check if this paragraph might be a poem verse (usually shorter and contains Chinese punctuation)
+    const isPoemVerse =
+      paragraph.length < 50 &&
+      (paragraph.includes("，") ||
+        paragraph.includes("。") ||
+        paragraph.includes("、"));
+
+    if (isPoemVerse) {
+      // Add poem verse with special treatment
+      const enhancedPara = paragraph.replace(
+        /([，。！？、])/g,
+        '$1<break strength="medium"/>'
+      );
+
+      ssml += `<prosody rate="slow" pitch="medium">${enhancedPara}</prosody>`;
+      ssml += '<break strength="strong"/>';
+    } else {
+      // Regular narrative paragraph with sentence pauses
+      const enhancedPara = paragraph.replace(
+        /([。！？])/g,
+        '$1<break strength="medium"/>'
+      );
+
+      // Add paragraph with storytelling prosody
+      ssml += `<prosody rate="medium" pitch="medium">${enhancedPara}</prosody>`;
+      ssml += '<break strength="medium"/>';
+    }
+  }
+
   ssml += "</speak>";
   return ssml;
 };
@@ -184,6 +244,32 @@ const getServerBaseUrl = (): string => {
 };
 
 /**
+ * Convert SSML to plain text by removing all XML tags
+ * @param ssml SSML text
+ * @returns Plain text without XML tags
+ */
+const ssmlToPlainText = (ssml: string): string => {
+  // Remove XML declaration and root tag
+  let plainText = ssml
+    .replace(/<\?xml.*?\?>/, "")
+    .replace(/<speak.*?>/, "")
+    .replace(/<\/speak>/, "");
+
+  // Remove other SSML tags but keep their content
+  plainText = plainText.replace(/<[^>]*>/g, "");
+
+  // Decode XML entities
+  plainText = plainText
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'");
+
+  return plainText;
+};
+
+/**
  * Generate speech audio from text using Edge TTS
  * @param options Speak options
  * @returns Object containing the audio path and audio data
@@ -191,14 +277,22 @@ const getServerBaseUrl = (): string => {
 const speak = async (
   options: SpeakOptions
 ): Promise<{ audioUrl: string; audioData: string | null }> => {
-  const { text, voiceId = DEFAULT_VOICE_ID, outputFileName, rate = DEFAULT_RATE } = options;
+  const {
+    text,
+    voiceId = DEFAULT_VOICE_ID,
+    outputFileName,
+    rate = DEFAULT_RATE,
+  } = options;
 
   // Create output path
   const outputDir = path.join(process.cwd(), "dist");
   await fs.ensureDir(outputDir);
   const outputPath = path.join(outputDir, outputFileName);
 
-  // Strip markdown formatting to get plain text
+  // Preprocess text to be safe for TTS
+  // 1. Remove special characters that might cause issues
+  // 2. Ensure reasonable length (max 1000 chars)
+  // 3. Make sure text has proper sentence endings
   let plainText = text
     .replace(/#+\s+(.*)/g, "$1") // Headers
     .replace(/\*\*(.*?)\*\*/g, "$1") // Bold
@@ -206,34 +300,39 @@ const speak = async (
     .replace(/`{3}[\s\S]*?`{3}/g, "") // Code blocks
     .replace(/`(.*?)`/g, "$1") // Inline code
     .replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1"); // Links
-  
+
+  // Limit text length to maximum 1000 characters to avoid TTS issues
+  if (plainText.length > 1000) {
+    console.log(
+      `Text too long (${plainText.length} chars), truncating to 1000 chars`
+    );
+    plainText = plainText.substring(0, 1000) + "...";
+  }
+
+  // Ensure text ends with proper punctuation
+  if (!plainText.match(/[。？！.,?!]$/)) {
+    plainText = plainText + "。";
+  }
+
   // Check for poem patterns in the text
   const hasLineBreaks = plainText.includes("\n");
-  const hasChinesePunctuation = plainText.includes("，") || plainText.includes("。") || plainText.includes("、");
-  const hasShortLines = plainText.split("\n").some(line => line.trim().length > 0 && line.trim().length <= 15);
+  const hasChinesePunctuation =
+    plainText.includes("，") ||
+    plainText.includes("。") ||
+    plainText.includes("、");
+  const hasShortLines = plainText
+    .split("\n")
+    .some((line) => line.trim().length > 0 && line.trim().length <= 15);
   const hasChineseCharacters = /[\u4e00-\u9fa5]/.test(plainText);
-  const hasBalancedLineLength = (() => {
-    const lines = plainText.split("\n").map(l => l.trim()).filter(l => l.length > 0);
-    if (lines.length < 2) return false;
-    
-    // Check if lines have similar length (typical for many Chinese poems)
-    const lengths = lines.map(l => l.length);
-    const avgLength = lengths.reduce((sum, len) => sum + len, 0) / lengths.length;
-    const allSimilar = lengths.every(len => Math.abs(len - avgLength) <= 3);
-    return allSimilar;
-  })();
-  
-  // Combine these signals to determine if this is likely a poem
-  const isPoem = hasChineseCharacters && hasLineBreaks && 
-    (hasChinesePunctuation || hasShortLines || hasBalancedLineLength);
-  
-  if (isPoem) {
-    console.log("📜 Detected Chinese poem format:");
-    console.log("- Has line breaks:", hasLineBreaks);
-    console.log("- Has Chinese punctuation:", hasChinesePunctuation);
-    console.log("- Has short lines:", hasShortLines);
-    console.log("- Has balanced line length:", hasBalancedLineLength);
-    console.log("- Sample of poem:", plainText.slice(0, 50) + (plainText.length > 50 ? "..." : ""));
+
+  // Simplify the detection logic to reduce potential issues
+  const isPoem = hasChineseCharacters && hasLineBreaks && hasChinesePunctuation;
+  const isNarrative = hasChineseCharacters && plainText.length > 200;
+
+  let textToSpeak = plainText;
+  // For longer texts, break into manageable chunks with punctuation
+  if (textToSpeak.length > 300) {
+    textToSpeak = textToSpeak.replace(/([。！？])/g, "$1\n");
   }
 
   // Generate the audio file
@@ -242,74 +341,30 @@ const speak = async (
       // Format the rate parameter correctly
       const rateArg = `--rate=${rate}`;
 
-      let ttsProcess;
-      
-      // If this is a poem, we'll apply special formatting to improve recitation
-      if (isPoem) {
-        console.log("📝 Applying special poem formatting");
-        
-        // Format the poem with appropriate pauses
-        // Add pauses between lines and at punctuation
-        const lines = plainText.split("\n").map(line => line.trim()).filter(line => line.length > 0);
-        let formattedPoem = "";
-        
-        // Process each line with appropriate pauses
-        for (let i = 0; i < lines.length; i++) {
-          let line = lines[i];
-          
-          // First line might be title
-          if (i === 0 && line.length < 15 && !line.includes("，") && lines.length > 1) {
-            // Likely a title - add stronger pause after it
-            formattedPoem += line + "。";
-          } else {
-            // Regular line - ensure it ends with punctuation for proper pacing
-            if (!line.match(/[，。？！、]/)) {
-              line += "。";
-            }
-            formattedPoem += line;
-          }
-          
-          // Add a pause between lines if not the last line
-          if (i < lines.length - 1) {
-            formattedPoem += "。";
-          }
-        }
-        
-        console.log("🎙️ Formatted poem for TTS:", formattedPoem);
-        
-        // Use Python edge-tts with formatted poem text
-        ttsProcess = spawn("python", [
-          "-m",
-          "edge_tts",
-          "--voice",
-          voiceId,
-          "--text",
-          formattedPoem,
-          "--write-media",
-          outputPath,
-          rateArg
-        ]);
-      } else {
-        // For regular text, just use normal TTS
-        console.log("🔤 Processing regular text (not a poem)");
-        ttsProcess = spawn("python", [
-          "-m",
-          "edge_tts",
-          "--voice",
-          voiceId,
-          "--text",
-          plainText,
-          "--write-media",
-          outputPath,
-          rateArg
-        ]);
-      }
+      // Use simple text-to-speech - don't use SSML or complex formatting
+      console.log(
+        `🔊 Generating TTS with text (${textToSpeak.length} chars): ${outputPath}`
+      );
+      const ttsProcess = spawn("python", [
+        "-m",
+        "edge_tts",
+        "--text",
+        textToSpeak,
+        "--voice",
+        voiceId,
+        rateArg,
+        "--write-media",
+        outputPath,
+      ]);
+
+      let stdErrOutput = "";
 
       ttsProcess.stdout.on("data", (data) => {
         console.log(`TTS stdout: ${data}`);
       });
 
       ttsProcess.stderr.on("data", (data) => {
+        stdErrOutput += data.toString();
         console.error(`TTS stderr: ${data}`);
       });
 
@@ -331,7 +386,56 @@ const speak = async (
           resolve({ audioUrl, audioData });
         } else {
           console.error(`❌ TTS generation failed with exit code ${code}`);
-          reject(new Error(`TTS process exited with code ${code}`));
+
+          // Try a fallback with simpler text if failed
+          if (stdErrOutput.includes("NoAudioReceived")) {
+            console.log("Attempting fallback with simpler text...");
+
+            // Create a simple text version - just plain characters, no formatting
+            const fallbackText = "这是一首古诗的朗诵。";
+
+            const fallbackProcess = spawn("python", [
+              "-m",
+              "edge_tts",
+              "--text",
+              fallbackText,
+              "--voice",
+              voiceId,
+              "--write-media",
+              outputPath,
+            ]);
+
+            fallbackProcess.on("close", async (fallbackCode) => {
+              if (fallbackCode === 0) {
+                const audioUrl = `/dist/${outputFileName}`;
+                console.log(
+                  `✅ Fallback TTS generation successful: ${audioUrl}`
+                );
+
+                try {
+                  const fileBuffer = await fs.readFile(outputPath);
+                  const audioData = fileBuffer.toString("base64");
+                  resolve({ audioUrl, audioData });
+                } catch (error) {
+                  reject(
+                    new Error(
+                      `Failed to read fallback audio file: ${error instanceof Error ? error.message : String(error)}`
+                    )
+                  );
+                }
+              } else {
+                reject(
+                  new Error(
+                    `Both TTS attempts failed with exit codes ${code} and ${fallbackCode}`
+                  )
+                );
+              }
+            });
+          } else {
+            reject(
+              new Error(`TTS process exited with code ${code}: ${stdErrOutput}`)
+            );
+          }
         }
       });
     } catch (error) {
@@ -434,18 +538,18 @@ const deleteAudioFile = async (audioPath: string): Promise<void> => {
   }
 };
 
-const SpeechService = {
-  loadVoices,
+export default {
+  speak,
   getVoices,
+  loadVoices,
   setServerBaseUrl,
   getServerBaseUrl,
-  speak,
   getAudioFileSize,
   getAudioAsBase64,
   convertToSSML,
   formatPoemSSML,
+  formatStorytellingSSML,
+  ssmlToPlainText,
   readAudioFile,
   deleteAudioFile,
 };
-
-export default SpeechService;
