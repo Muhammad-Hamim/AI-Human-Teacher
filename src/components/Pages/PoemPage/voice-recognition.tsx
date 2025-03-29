@@ -23,23 +23,32 @@ export default function VoiceRecognition({ poem }: VoiceRecognitionProps) {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [selectedLine, setSelectedLine] = useState<any>(null);
-  const [selectedLineIndex, setSelectedLineIndex] = useState<number | null>(null);
+  const [selectedLineIndex, setSelectedLineIndex] = useState<number | null>(
+    null
+  );
   const [feedback, setFeedback] = useState<string | null>(null);
   const [accuracy, setAccuracy] = useState<number>(0);
   const [practiceMode, setPracticeMode] = useState<"line" | "full">("line");
   const [unmatchedChars, setUnmatchedChars] = useState<string[]>([]);
-  const [currentTranscriptText, setCurrentTranscriptText] = useState<string>("");
+  const [currentTranscriptText, setCurrentTranscriptText] =
+    useState<string>("");
 
   const recognitionRef = useRef<any>(null);
 
   // Initialize speech recognition
   useEffect(() => {
-    if (!("webkitSpeechRecognition" in window) && !("SpeechRecognition" in window)) {
-      setFeedback("Your browser doesn't support speech recognition. Try using Chrome.");
+    if (
+      !("webkitSpeechRecognition" in window) &&
+      !("SpeechRecognition" in window)
+    ) {
+      setFeedback(
+        "Your browser doesn't support speech recognition. Try using Chrome."
+      );
       return;
     }
 
-    const SpeechRecognition = window.webkitSpeechRecognition || window.SpeechRecognition;
+    const SpeechRecognition =
+      window.webkitSpeechRecognition || window.SpeechRecognition;
     recognitionRef.current = new SpeechRecognition();
     recognitionRef.current.continuous = true;
     recognitionRef.current.interimResults = true;
@@ -100,7 +109,7 @@ export default function VoiceRecognition({ poem }: VoiceRecognitionProps) {
       try {
         recognitionRef.current.stop();
         console.log("Stopped listening");
-        
+
         // Only evaluate if we should and have transcript text
         if (shouldEvaluate && currentTranscriptText) {
           console.log("Evaluating transcript:", currentTranscriptText);
@@ -126,67 +135,80 @@ export default function VoiceRecognition({ poem }: VoiceRecognitionProps) {
   // Evaluate recitation using compareText utility
   const evaluateRecitation = (transcriptText: string) => {
     let targetChinese = "";
-    
+
     // Ensure we have the current practice mode and selected line
     const currentPracticeMode = practiceMode;
     const currentSelectedLine = selectedLine;
-    
-    console.log('practiceMode:', currentPracticeMode);
-    console.log('transcriptText:', transcriptText);
-    
+
+    console.log("practiceMode:", currentPracticeMode);
+    console.log("transcriptText:", transcriptText);
+
     // Get target text based on practice mode
     if (currentPracticeMode === "line" && currentSelectedLine) {
-      console.log('selectedLine:', currentSelectedLine);
+      console.log("selectedLine:", currentSelectedLine);
       targetChinese = currentSelectedLine.chinese;
     } else if (currentPracticeMode === "full") {
       targetChinese = poem.lines.map((line: any) => line.chinese).join("");
     } else {
-      console.error('No valid practice mode or selected line');
+      console.error("No valid practice mode or selected line");
       return;
     }
-    
-    console.log('targetChinese:', targetChinese);
-    
+
+    console.log("targetChinese:", targetChinese);
+
     if (!targetChinese || targetChinese.trim() === "") {
-      console.error('Target Chinese text is empty');
-      setFeedback("Error: Could not find the target text to compare with. Please select a line to practice.");
+      console.error("Target Chinese text is empty");
+      setFeedback(
+        "Error: Could not find the target text to compare with. Please select a line to practice."
+      );
       return;
     }
 
     // Use the compareText utility to compare user's speech with target text
     try {
       const comparisonResult = compareText(targetChinese, transcriptText);
-      console.log('Comparison result:', comparisonResult);
-      
+      console.log("Comparison result:", comparisonResult);
+
       // Set accuracy based on the comparison result
       setAccuracy(Math.round(comparisonResult.matchPercentage));
-      
+
       // Store the unmatched characters for feedback
       setUnmatchedChars(comparisonResult.unmatchedCharacters);
-      
+
       // Generate feedback based on the match percentage
-      generateFeedback(comparisonResult.matchPercentage, comparisonResult.unmatchedCharacters);
+      generateFeedback(
+        comparisonResult.matchPercentage,
+        comparisonResult.unmatchedCharacters
+      );
     } catch (error) {
-      console.error('Error comparing text:', error);
+      console.error("Error comparing text:", error);
       setFeedback(`Error comparing your speech: ${error}`);
     }
   };
 
   // Generate detailed feedback based on match percentage
-  const generateFeedback = (matchPercentage: number, unmatchedChars: string[]) => {
+  const generateFeedback = (
+    matchPercentage: number,
+    unmatchedChars: string[]
+  ) => {
     let feedbackMessage = "";
 
     // Determine feedback based on match percentage
     if (matchPercentage >= 90) {
-      feedbackMessage = "Excellent! Your pronunciation is nearly perfect. 太棒了！";
+      feedbackMessage =
+        "Excellent! Your pronunciation is nearly perfect. 太棒了！";
     } else if (matchPercentage >= 75) {
-      feedbackMessage = "Great job! Your pronunciation is very good with only a few minor errors.";
+      feedbackMessage =
+        "Great job! Your pronunciation is very good with only a few minor errors.";
     } else if (matchPercentage >= 60) {
-      feedbackMessage = "Good effort. Your pronunciation needs some improvement in certain areas.";
+      feedbackMessage =
+        "Good effort. Your pronunciation needs some improvement in certain areas.";
     } else if (matchPercentage >= 40) {
-      feedbackMessage = "You're making progress, but there are several pronunciation errors to work on.";
+      feedbackMessage =
+        "You're making progress, but there are several pronunciation errors to work on.";
     } else {
-      feedbackMessage = "Let's keep practicing. Try focusing on pronouncing each character clearly.";
+      feedbackMessage =
+        "Let's keep practicing. Try focusing on pronouncing each character clearly.";
     }
 
     // Add specific feedback about unmatched characters if there are any
@@ -194,9 +216,13 @@ export default function VoiceRecognition({ poem }: VoiceRecognitionProps) {
       // Limit to showing just a few of the unmatched characters for clarity
       const displayChars = unmatchedChars.slice(0, 3);
       if (unmatchedChars.length > 3) {
-        feedbackMessage += ` Pay particular attention to characters like "${displayChars.join('", "')}", and ${unmatchedChars.length - 3} others.`;
+        feedbackMessage += ` Pay particular attention to characters like "${displayChars.join(
+          '", "'
+        )}", and ${unmatchedChars.length - 3} others.`;
       } else {
-        feedbackMessage += ` Pay particular attention to characters like "${displayChars.join('", "')}".`;
+        feedbackMessage += ` Pay particular attention to characters like "${displayChars.join(
+          '", "'
+        )}".`;
       }
     }
 
@@ -205,17 +231,67 @@ export default function VoiceRecognition({ poem }: VoiceRecognitionProps) {
 
     // Add suggestions for improvement
     if (matchPercentage < 75) {
-      feedbackMessage += " Try listening to the pronunciation again and practice with slower speech.";
+      feedbackMessage +=
+        " Try listening to the pronunciation again and practice with slower speech.";
     }
 
     setFeedback(feedbackMessage);
   };
 
-  // Speak text
+  // Speak function using audio files when available
   const speak = (text: string) => {
+    const hasAudioResources =
+      poem.audioResources &&
+      (poem.audioResources.fullReading ||
+        poem.audioResources.lineReadings ||
+        poem.audioResources.wordPronunciations);
+
+    if (hasAudioResources) {
+      const audioElement = new Audio();
+
+      // Determine which audio to play
+      if (practiceMode === "line" && selectedLine) {
+        // Find line audio by matching line text
+        const lineIndex = poem.lines.findIndex(
+          (line: any) => line.chinese === selectedLine.chinese
+        );
+        if (lineIndex !== -1) {
+          const lineAudio = poem.audioResources.lineReadings.find(
+            (l: any) => l.lineId === lineIndex + 1
+          );
+
+          if (lineAudio && lineAudio.url) {
+            audioElement.src = lineAudio.url;
+            audioElement
+              .play()
+              .catch((err) => console.error("Error playing audio:", err));
+            return;
+          }
+        }
+      } else if (practiceMode === "full" && poem.audioResources.fullReading) {
+        // Play full poem audio
+        audioElement.src = poem.audioResources.fullReading.url;
+        audioElement
+          .play()
+          .catch((err) => console.error("Error playing audio:", err));
+        return;
+      }
+    }
+
+    // Fallback to browser speech synthesis if no audio found
+    if (!window.speechSynthesis) {
+      console.error("Speech synthesis not supported in this browser");
+      return;
+    }
+
+    // Cancel any ongoing speech
+    window.speechSynthesis.cancel();
+
+    // Create a new utterance
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.rate = 0.5;
-    utterance.pitch = 1;
+
+    // Try to find a Chinese voice
     const voices = window.speechSynthesis.getVoices();
     const chineseVoice = voices.find(
       (voice) => voice.lang.includes("zh") || voice.lang.includes("cmn")
@@ -223,6 +299,8 @@ export default function VoiceRecognition({ poem }: VoiceRecognitionProps) {
     if (chineseVoice) {
       utterance.voice = chineseVoice;
     }
+
+    // Speak the text
     window.speechSynthesis.speak(utterance);
   };
 
@@ -239,19 +317,24 @@ export default function VoiceRecognition({ poem }: VoiceRecognitionProps) {
   // Get color class based on accuracy
   const getAccuracyColorClass = (accuracy: number) => {
     if (accuracy >= 90) return "bg-green-900 border-green-700 text-green-200";
-    if (accuracy >= 70) return "bg-yellow-900 border-yellow-700 text-yellow-200";
-    if (accuracy >= 50) return "bg-orange-900 border-orange-700 text-orange-200";
+    if (accuracy >= 70)
+      return "bg-yellow-900 border-yellow-700 text-yellow-200";
+    if (accuracy >= 50)
+      return "bg-orange-900 border-orange-700 text-orange-200";
     return "bg-red-900 border-red-700 text-red-200";
   };
 
   // Get icon based on accuracy
   const getAccuracyIcon = (accuracy: number) => {
-    if (accuracy >= 90) return <CheckCircle size={16} className="text-green-400" />;
-    if (accuracy >= 70) return <CheckCircle size={16} className="text-yellow-400" />;
-    if (accuracy >= 50) return <AlertTriangle size={16} className="text-orange-400" />;
+    if (accuracy >= 90)
+      return <CheckCircle size={16} className="text-green-400" />;
+    if (accuracy >= 70)
+      return <CheckCircle size={16} className="text-yellow-400" />;
+    if (accuracy >= 50)
+      return <AlertTriangle size={16} className="text-orange-400" />;
     return <XCircle size={16} className="text-red-400" />;
   };
-  
+
   // Get progress bar color
   const getProgressColor = (accuracy: number) => {
     if (accuracy >= 90) return "bg-green-500";
@@ -288,18 +371,24 @@ export default function VoiceRecognition({ poem }: VoiceRecognitionProps) {
               </div>
               {practiceMode === "line" && (
                 <div className="space-y-2">
-                  <h3 className="text-sm font-medium">Select a line to practice:</h3>
+                  <h3 className="text-sm font-medium">
+                    Select a line to practice:
+                  </h3>
                   <div className="space-y-2">
                     {poem.lines.map((line: any, index: number) => (
                       <Button
                         key={index}
-                        variant={selectedLineIndex === index ? "default" : "outline"}
+                        variant={
+                          selectedLineIndex === index ? "default" : "outline"
+                        }
                         className="w-full justify-start h-auto py-2"
                         onClick={() => selectLine(line, index)}
                       >
                         <div className="text-left">
                           <div className="font-medium">{line.chinese}</div>
-                          <div className="text-xs opacity-70">{line.pinyin}</div>
+                          <div className="text-xs opacity-70">
+                            {line.pinyin}
+                          </div>
                         </div>
                       </Button>
                     ))}
@@ -313,7 +402,9 @@ export default function VoiceRecognition({ poem }: VoiceRecognitionProps) {
                     {poem.lines.map((line: any, index: number) => (
                       <div key={index} className="space-y-1">
                         <div className="font-medium">{line.chinese}</div>
-                        <div className="text-xs text-gray-500">{line.pinyin}</div>
+                        <div className="text-xs text-gray-500">
+                          {line.pinyin}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -327,7 +418,9 @@ export default function VoiceRecognition({ poem }: VoiceRecognitionProps) {
                     if (practiceMode === "line" && selectedLine) {
                       speak(selectedLine.chinese);
                     } else if (practiceMode === "full") {
-                      speak(poem.lines.map((line: any) => line.chinese).join(""));
+                      speak(
+                        poem.lines.map((line: any) => line.chinese).join("")
+                      );
                     }
                   }}
                 >
@@ -345,7 +438,9 @@ export default function VoiceRecognition({ poem }: VoiceRecognitionProps) {
           <CardContent>
             <div className="space-y-6">
               <div className="border border-gray-700 rounded-md p-4 bg-gray-900">
-                <h3 className="text-sm font-medium text-gray-200 mb-2">Target Text:</h3>
+                <h3 className="text-sm font-medium text-gray-200 mb-2">
+                  Target Text:
+                </h3>
                 <p className="text-lg text-gray-100">
                   {practiceMode === "line"
                     ? selectedLine?.chinese
@@ -358,12 +453,16 @@ export default function VoiceRecognition({ poem }: VoiceRecognitionProps) {
                 </p>
               </div>
               <div className="border border-gray-700 rounded-md p-4 min-h-[100px] relative bg-gray-800">
-                <h3 className="text-sm font-medium mb-2 text-gray-200">Your Speech:</h3>
+                <h3 className="text-sm font-medium mb-2 text-gray-200">
+                  Your Speech:
+                </h3>
                 {transcript ? (
                   <p className="text-lg text-gray-100">{transcript}</p>
                 ) : (
                   <p className="text-gray-400 italic">
-                    {isListening ? "Listening... Speak now and click the mic button when done" : "Press the microphone button and speak"}
+                    {isListening
+                      ? "Listening... Speak now and click the mic button when done"
+                      : "Press the microphone button and speak"}
                   </p>
                 )}
                 {isListening && (
@@ -381,20 +480,32 @@ export default function VoiceRecognition({ poem }: VoiceRecognitionProps) {
               </div>
               {feedback && (
                 <div
-                  className={`border rounded-md p-4 ${getAccuracyColorClass(accuracy)}`}
+                  className={`border rounded-md p-4 ${getAccuracyColorClass(
+                    accuracy
+                  )}`}
                 >
                   <div className="flex items-center gap-2 mb-2">
-                    <h3 className="text-sm font-medium text-gray-200">Feedback:</h3>
+                    <h3 className="text-sm font-medium text-gray-200">
+                      Feedback:
+                    </h3>
                     {getAccuracyIcon(accuracy)}
                   </div>
-                  <p className="text-gray-200 whitespace-pre-line">{feedback}</p>
-                  
+                  <p className="text-gray-200 whitespace-pre-line">
+                    {feedback}
+                  </p>
+
                   {unmatchedChars.length > 0 && (
                     <div className="mt-3 p-2 border border-gray-700/50 rounded-md bg-gray-800/60">
-                      <p className="text-xs font-medium mb-1 text-gray-300">Characters to practice:</p>
+                      <p className="text-xs font-medium mb-1 text-gray-300">
+                        Characters to practice:
+                      </p>
                       <div className="flex flex-wrap gap-2">
                         {unmatchedChars.slice(0, 8).map((char, idx) => (
-                          <Badge key={idx} variant="outline" className="bg-gray-700/80">
+                          <Badge
+                            key={idx}
+                            variant="outline"
+                            className="bg-gray-700/80"
+                          >
                             {char}
                           </Badge>
                         ))}
@@ -406,17 +517,18 @@ export default function VoiceRecognition({ poem }: VoiceRecognitionProps) {
                       </div>
                     </div>
                   )}
-                  
+
                   <div className="mt-4 space-y-1">
                     <div className="flex justify-between text-sm text-gray-300">
                       <span>Accuracy</span>
                       <span>{accuracy}%</span>
                     </div>
-                    <Progress 
-                      value={accuracy} 
-                      className="h-2" 
+                    <Progress
+                      value={accuracy}
+                      className="h-2"
                       style={{
-                        ['--progress-background' as any]: getProgressColor(accuracy)
+                        ["--progress-background" as any]:
+                          getProgressColor(accuracy),
                       }}
                     />
                   </div>
@@ -433,7 +545,9 @@ export default function VoiceRecognition({ poem }: VoiceRecognitionProps) {
                 </Button>
               </div>
               <div className="text-center text-sm text-gray-400">
-                {isListening ? "Click the mic button again when you're done speaking" : "Click the mic button and start speaking"}
+                {isListening
+                  ? "Click the mic button again when you're done speaking"
+                  : "Click the mic button and start speaking"}
               </div>
               {feedback && (
                 <div className="flex justify-center">
