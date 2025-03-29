@@ -22,7 +22,12 @@ export const compareText = (text1: string, text2: string) => {
     
     // Initialize variable for matching and unmatched characters
     const matchingCharacters: string[] = [];
-    const unmatchedCharacters: string[] = [];
+    const unmatchedCharacters = referencePinyinArray
+        .map((pinyinChar, index) => {
+            return !comparisonPinyinArray.includes(pinyinChar) ? text1[index] : null;
+        })
+        .filter(Boolean) as string[]; // Remove nulls
+
     
     // Use reduce to count the matches and track unmatched characters
     const matchCount = referencePinyinArray.reduce((count, pinyin1, index) => {
@@ -32,7 +37,6 @@ export const compareText = (text1: string, text2: string) => {
                 matchingCharacters.push(text2[index]);
                 return count + 1; // Increment count if the pinyin matches
             } else {
-                unmatchedCharacters.push(text2[index] || ''); // Store the unmatched character
                 return count; // No match, return the current count
             }
         }

@@ -58,7 +58,9 @@ export interface StrokeAnimationRequest {
 
 export const deepSeekApi = createApi({
   reducerPath: "deepSeekApi",
-  baseQuery: fetchBaseQuery({ baseUrl: "/api/" }),
+  baseQuery: fetchBaseQuery({
+    baseUrl: "http://localhost:5000/api/v1/",
+  }),
   endpoints: (builder) => ({
     getPoemAnalysis: builder.query<any, AnalysisRequest>({
       query: (request) => ({
@@ -291,43 +293,12 @@ export const deepSeekApi = createApi({
       },
     }),
 
-    getMockStorytellerNarration: builder.query<
-      any,
-      Partial<StorytellerRequest>
-    >({
-      queryFn: (request) => {
-        return {
-          data: {
-            narration:
-              "As night falls over ancient China, a weary traveler rests in his simple quarters. The soft glow of moonlight streams through his window, casting an ethereal light across the floor. [sound: gentle wind] The traveler stirs from his contemplation, noticing how the silvery moonbeams create patterns that remind him of morning frost. [sound: soft footsteps] Slowly, he raises his head to gaze at the brilliant moon hanging in the night sky—the same moon that shines over his distant homeland. [sound: deep breath] With a heavy heart, he lowers his gaze, lost in thoughts of the family and home he left behind. In this quiet moment, under the watchful eye of the moon, his longing for home has never felt more profound. [sound: distant flute melody fading]",
-            soundEffects: [
-              {
-                cue: "gentle wind",
-                timing: "after first sentence",
-                description: "Soft whistling wind sound",
-              },
-              {
-                cue: "soft footsteps",
-                timing: "before looking at moon",
-                description: "Quiet footsteps on wooden floor",
-              },
-              {
-                cue: "deep breath",
-                timing: "before lowering gaze",
-                description: "Audible contemplative breath",
-              },
-              {
-                cue: "distant flute melody",
-                timing: "at end",
-                description:
-                  "Traditional Chinese flute playing melancholic tune",
-              },
-            ],
-            toneDescription:
-              "The narration should be delivered in a nostalgic, contemplative tone, with a gentle pace that allows the listener to visualize each scene. The voice should soften when describing the moonlight and become more emotional when mentioning thoughts of home.",
-          },
-        };
-      },
+    getMockStorytellerNarration: builder.query({
+      query: (params) => ({
+        url: "/mock/storyteller",
+        method: "GET",
+        params,
+      }),
     }),
 
     getMockCulturalInsights: builder.query<
@@ -417,75 +388,6 @@ export const deepSeekApi = createApi({
       },
     }),
 
-    getMockCharacterStrokeAnimation: builder.query<
-      any,
-      Partial<StrokeAnimationRequest>
-    >({
-      queryFn: (request) => {
-        const character = request.character || "月";
-
-        // Mock stroke data - in a real implementation, this would be actual stroke data
-        const strokeData = {
-          月: {
-            totalStrokes: 4,
-            strokes: [
-              { path: "M 20,20 L 80,20", order: 1, direction: "left-to-right" },
-              { path: "M 20,20 L 20,80", order: 2, direction: "top-to-bottom" },
-              { path: "M 20,50 L 80,50", order: 3, direction: "left-to-right" },
-              { path: "M 80,20 L 80,80", order: 4, direction: "top-to-bottom" },
-            ],
-          },
-          明: {
-            totalStrokes: 8,
-            strokes: [
-              { path: "M 20,20 L 50,20", order: 1, direction: "left-to-right" },
-              { path: "M 35,20 L 35,80", order: 2, direction: "top-to-bottom" },
-              { path: "M 20,50 L 50,50", order: 3, direction: "left-to-right" },
-              { path: "M 20,80 L 50,80", order: 4, direction: "left-to-right" },
-              { path: "M 60,20 L 90,20", order: 5, direction: "left-to-right" },
-              { path: "M 60,20 L 60,80", order: 6, direction: "top-to-bottom" },
-              { path: "M 60,50 L 90,50", order: 7, direction: "left-to-right" },
-              { path: "M 90,20 L 90,80", order: 8, direction: "top-to-bottom" },
-            ],
-          },
-          床: {
-            totalStrokes: 7,
-            strokes: [
-              { path: "M 10,20 L 90,20", order: 1, direction: "left-to-right" },
-              { path: "M 50,20 L 50,80", order: 2, direction: "top-to-bottom" },
-              { path: "M 20,40 L 80,40", order: 3, direction: "left-to-right" },
-              { path: "M 20,40 L 20,80", order: 4, direction: "top-to-bottom" },
-              { path: "M 80,40 L 80,80", order: 5, direction: "top-to-bottom" },
-              { path: "M 20,60 L 80,60", order: 6, direction: "left-to-right" },
-              { path: "M 20,80 L 80,80", order: 7, direction: "left-to-right" },
-            ],
-          },
-        };
-
-        return {
-          data: {
-            character: character,
-            strokeData: strokeData[character as keyof typeof strokeData] || {
-              totalStrokes: 0,
-              strokes: [],
-            },
-            animationTiming:
-              "1000ms per stroke with 500ms pause between strokes",
-            pronunciationGuide: {
-              pinyin:
-                character === "月"
-                  ? "yuè"
-                  : character === "明"
-                  ? "míng"
-                  : character === "床"
-                  ? "chuáng"
-                  : "",
-              audioUrl: `/api/pronunciation/${character}`,
-            },
-          },
-        };
-      },
-    }),
     getMockCreativeWriting: builder.query<any, Partial<CreativeWritingRequest>>(
       {
         queryFn: (request) => {
@@ -506,6 +408,13 @@ export const deepSeekApi = createApi({
         },
       }
     ),
+    getPoemNarration: builder.mutation({
+      query: ({ poemId }) => ({
+        url: "/ai/poem-narration/generate",
+        method: "POST",
+        body: { poemId },
+      }),
+    }),
   }),
 });
 
@@ -523,6 +432,6 @@ export const {
   useGetMockStorytellerNarrationQuery,
   useGetMockCulturalInsightsQuery,
   useGetMockKnowledgeBaseAnswerMutation,
-  useGetMockCharacterStrokeAnimationQuery,
   useGetMockCreativeWritingQuery,
+  useGetPoemNarrationMutation,
 } = deepSeekApi;

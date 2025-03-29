@@ -36,6 +36,7 @@
     "date-fns": "^4.1.0",
     "framer-motion": "^12.5.0",
     "gsap": "^3.12.7",
+    "hanzi-writer": "^3.7.2",
     "howler": "^2.2.4",
     "lottie-react": "^2.4.1",
     "lottie-web": "^5.12.2",

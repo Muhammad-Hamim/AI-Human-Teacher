@@ -14,7 +14,6 @@ import {
   RefreshCw,
   AlertTriangle,
 } from "lucide-react";
-import { pinyin } from "pinyin-pro";
 import { compareText } from "@/utils/compareText";
 
 interface VoiceRecognitionProps {
