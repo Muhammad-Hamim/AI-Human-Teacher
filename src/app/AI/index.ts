@@ -4,7 +4,8 @@ import ChatRoutes from "./chat/chat.route";
 import ChatService from "./chat/chat.service";
 import { VoiceService } from "./voice/voice.service";
 import SpeechService from "./services/speech.service";
-import { PoemNarrationRoutes } from "./edgetts/poem-narration.route";
+import { PoemNarrationRoutes } from "./poem-narration/poem-narration.route";
+import { PoemInsightsRoutes } from "./poem-insights/poem-insights.route";
 import TTSTestRoutes from "./edgetts/tts-test.route";
 
 // Export all AI components
@@ -16,6 +17,7 @@ export {
   VoiceRoutes,
   SpeechService,
   PoemNarrationRoutes,
+  PoemInsightsRoutes,
   TTSTestRoutes,
 };
 
