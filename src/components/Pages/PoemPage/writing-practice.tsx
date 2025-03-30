@@ -34,11 +34,13 @@ export default function WritingPractice({ poem }: WritingPracticeProps) {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [currentPos, setCurrentPos] = useState<Point>({ x: 0, y: 0 });
   const [isAnimating, setIsAnimating] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationDivRef = useRef<HTMLDivElement>(null);
   const contextRef = useRef<CanvasRenderingContext2D | null>(null);
   const writerRef = useRef<any>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const dispatch = useAppDispatch();
 
   // Initialize canvas for drawing
@@ -424,10 +426,72 @@ export default function WritingPractice({ poem }: WritingPracticeProps) {
     link.click();
   };
 
-  // Speak the selected character
+  // Initialize audio element
+  useEffect(() => {
+    if (!audioRef.current) {
+      audioRef.current = new Audio();
+
+      // Set up event listeners
+      audioRef.current.addEventListener("ended", () => {
+        setIsPlaying(false);
+      });
+
+      audioRef.current.addEventListener("error", () => {
+        setIsPlaying(false);
+        console.error("Audio playback error");
+      });
+    }
+
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = "";
+      }
+    };
+  }, []);
+
+  // Speak the selected character using audio resources from API
   const speakCharacter = () => {
     if (!selectedChar) return;
 
+    // Check if audio resources exist for the poem
+    if (poem.audioResources && poem.audioResources.wordPronunciations) {
+      // Find the word pronunciation for the selected character
+      const wordAudio = poem.audioResources.wordPronunciations.find(
+        (w: any) => w.word === selectedChar
+      );
+
+      if (wordAudio && wordAudio.url) {
+        // Use audio reference for better control
+        if (audioRef.current) {
+          // Stop any current playback
+          if (isPlaying) {
+            audioRef.current.pause();
+          }
+
+          // Set new audio source and play
+          audioRef.current.src = wordAudio.url;
+          audioRef.current
+            .play()
+            .then(() => {
+              setIsPlaying(true);
+            })
+            .catch((error) => {
+              console.error("Error playing audio:", error);
+              setIsPlaying(false);
+              fallbackToSpeechSynthesis();
+            });
+          return;
+        }
+      }
+    }
+
+    // Fallback to speech synthesis if no audio found
+    fallbackToSpeechSynthesis();
+  };
+
+  // Fallback to using browser's speech synthesis
+  const fallbackToSpeechSynthesis = () => {
     const utterance = new SpeechSynthesisUtterance(selectedChar);
 
     // Try to find a Chinese voice
@@ -498,9 +562,32 @@ export default function WritingPractice({ poem }: WritingPracticeProps) {
                 <div className="text-6xl font-bold text-muted-foreground select-none">
                   {selectedChar}
                 </div>
-                <Button size="sm" onClick={speakCharacter}>
-                  <Volume2 size={16} className="mr-2" />
-                  Pronounce
+                <Button
+                  size="sm"
+                  onClick={
+                    isPlaying
+                      ? () => {
+                          if (audioRef.current) {
+                            audioRef.current.pause();
+                            audioRef.current.currentTime = 0;
+                            setIsPlaying(false);
+                          }
+                        }
+                      : speakCharacter
+                  }
+                  variant={isPlaying ? "secondary" : "default"}
+                >
+                  {isPlaying ? (
+                    <>
+                      <Pause size={16} className="mr-2" />
+                      Stop
+                    </>
+                  ) : (
+                    <>
+                      <Volume2 size={16} className="mr-2" />
+                      Pronounce
+                    </>
+                  )}
                 </Button>
               </div>
             </div>
