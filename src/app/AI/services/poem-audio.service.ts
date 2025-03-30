@@ -12,6 +12,7 @@ import {
   TWordPronunciation,
 } from "../../Models/poem/poem.interface";
 import config from "../../config";
+import { Poem } from "../../Models/poem/poem.model";
 
 // Configure Cloudinary
 cloudinary.config({
@@ -27,6 +28,9 @@ const getSafeFileName = (text: string, prefix: string = ""): string => {
   return `${prefix}_${hash}`;
 };
 
+// Characters that often cause Edge TTS errors and should be skipped
+const wordCharactersToSkip = new Set(["插", "蠟", "鑰", "鵲"]);
+
 /**
  * Generate TTS audio for Chinese text
  * @param text The Chinese text to process
@@ -39,7 +43,8 @@ const generateAudio = async (
   text: string,
   outputPath: string,
   voiceId: string = "zh-CN-XiaoxiaoNeural", // Female voice good for poetry
-  rate: string = "-20%" // Must include + or - sign
+  rate: string = "-20%", // Must include + or - sign
+  retryCount: number = 0
 ): Promise<number> => {
   return new Promise((resolve, reject) => {
     // Create directory if it doesn't exist
@@ -92,9 +97,62 @@ const generateAudio = async (
           resolve(0); // Default duration if estimation fails
         }
       } else {
-        reject(
-          new Error(`TTS process exited with code ${code}: ${stdErrOutput}`)
-        );
+        // Check if this is a 503 error or network error (common with Edge TTS)
+        const is503Error =
+          stdErrOutput.includes("503") ||
+          stdErrOutput.includes("Invalid response status") ||
+          stdErrOutput.includes("WSServerHandshakeError") ||
+          stdErrOutput.includes("service unavailable");
+
+        // Retry up to 3 times for these specific errors
+        if (is503Error && retryCount < 3) {
+          // Exponential backoff: wait longer for each retry attempt
+          const delayMs = 2000 * Math.pow(2, retryCount); // 2s, 4s, 8s
+          console.log(
+            `⚠️ Edge TTS service unavailable (attempt ${retryCount + 1}), retrying in ${delayMs / 1000} seconds...`
+          );
+
+          // Wait with increasing delay before retrying
+          setTimeout(async () => {
+            try {
+              // Try with a different voice if this is not the first retry
+              const alternateVoices = [
+                "zh-CN-XiaoxiaoNeural",
+                "zh-CN-YunxiNeural",
+                "zh-CN-YunyangNeural",
+                "zh-CN-XiaoyiNeural",
+              ];
+
+              // Select a different voice for each retry
+              const voiceIndex = retryCount % alternateVoices.length;
+              const alternateVoice = alternateVoices[voiceIndex];
+
+              console.log(`Retrying with voice: ${alternateVoice}`);
+              const duration = await generateAudio(
+                text,
+                outputPath,
+                alternateVoice,
+                rate,
+                retryCount + 1
+              );
+              resolve(duration);
+            } catch (retryError) {
+              reject(retryError);
+            }
+          }, delayMs);
+        } else {
+          if (is503Error) {
+            console.warn(
+              `Service unavailable for text: "${text}", skipping after ${retryCount} retries`
+            );
+            // For 503 errors after retries, return 0 duration instead of failing
+            resolve(0);
+          } else {
+            reject(
+              new Error(`TTS process exited with code ${code}: ${stdErrOutput}`)
+            );
+          }
+        }
       }
     });
   });
@@ -124,17 +182,52 @@ const uploadToCloudinary = async (
   }
 };
 
-// Check if audio resources already exist for a poem
-const checkAudioExists = async (poemId: string): Promise<boolean> => {
+// Check if audio resources already exist for a poem in the database
+const checkAudioExists = async (
+  poemId: string
+): Promise<TPoemAudioResources | null> => {
   try {
-    // Search for assets with the poem ID prefix
-    const result = await cloudinary.search
-      .expression(`folder:poem_audio AND public_id:${poemId}_full*`)
-      .execute();
+    // Check if the poem exists in the database with audioResources
+    const poem = await Poem.findById(poemId);
 
-    return result.total_count > 0;
+    if (poem && poem.audioResources) {
+      console.log(`Found audio resources in database for poem ${poemId}`);
+      return poem.audioResources;
+    }
+
+    return null;
   } catch (error) {
-    console.error("Error checking Cloudinary resources:", error);
+    console.error("Error checking audio resources in database:", error);
+    return null;
+  }
+};
+
+// Save audio resources to the poem document in the database
+const saveAudioResourcesToDatabase = async (
+  poemId: string,
+  audioResources: TPoemAudioResources
+): Promise<boolean> => {
+  try {
+    // Update the poem document with the audio resources using findByIdAndUpdate
+    const result = await Poem.findByIdAndUpdate(
+      poemId,
+      { audioResources }, // Update the entire audioResources field
+      { new: true }
+    );
+
+    if (!result) {
+      console.error(`No poem found with ID ${poemId}`);
+      return false;
+    }
+
+    console.log(`Audio resources saved to database for poem ${poemId}`);
+    return true;
+  } catch (error) {
+    console.error("Error saving audio resources to database:", error);
+    console.error(
+      "Error details:",
+      error instanceof Error ? error.message : error
+    );
     return false;
   }
 };
@@ -148,55 +241,80 @@ const generatePoemAudio = async (poem: TPoem): Promise<TPoemAudioResources> => {
     // Create temporary directory
     await fs.ensureDir(tmpDir);
 
-    // 1. Generate full poem audio
-    const fullPoemText =
+    // Check if audio already exists in the database
+    const existingAudioResources = await checkAudioExists(poemId);
+    if (existingAudioResources) {
+      console.log(
+        `🎵 Using existing audio resources from database for poem ${poemId}`
+      );
+      return existingAudioResources;
+    }
+
+    // If we get here, the audio doesn't exist, so we'll generate it
+
+    // 1. Generate full poem audio - include title and author information
+    const titleAndAuthor = `${poem.title}，${poem.dynasty}${poem.author}。`;
+    const poemContent =
       poem.lines.map((line) => line.chinese).join("，\n") + "。";
+
+    // Add a pause between title/author and poem content
+    const fullPoemText = `${titleAndAuthor}\n\n${poemContent}`;
     const fullPoemPath = path.join(tmpDir, "full.wav");
 
-    // Generate full poem audio with slower rate for better recitation
-    const fullDuration = await generateAudio(
-      fullPoemText,
-      fullPoemPath,
-      "zh-CN-XiaoxiaoNeural",
-      "-40%" // Slower for full poem reading
-    );
+    let fullDuration = 0;
+    let fullPoemUpload = { url: "", duration: 0 };
 
-    // Upload full poem audio
-    const fullPoemPublicId = `poem_${poemId}_full`;
-    const fullPoemUpload = await uploadToCloudinary(
-      fullPoemPath,
-      fullPoemPublicId
-    );
+    try {
+      // Generate full poem audio with slower rate for better recitation
+      fullDuration = await generateAudio(
+        fullPoemText,
+        fullPoemPath,
+        "zh-CN-XiaoxiaoNeural",
+        "-40%" // Slower for full poem reading
+      );
+
+      // Upload full poem audio
+      const fullPoemPublicId = `poem_${poemId}_full`;
+      fullPoemUpload = await uploadToCloudinary(fullPoemPath, fullPoemPublicId);
+    } catch (fullPoemError) {
+      console.error("Error generating full poem audio:", fullPoemError);
+      // Continue with lines and words even if full poem fails
+    }
 
     // 2. Generate line-by-line audio
     const lineReadings: TLineReading[] = [];
 
     for (let i = 0; i < poem.lines.length; i++) {
-      const line = poem.lines[i];
-      const lineText = line.chinese;
-      const linePath = path.join(tmpDir, `line_${i + 1}.wav`);
+      try {
+        const line = poem.lines[i];
+        const lineText = line.chinese;
+        const linePath = path.join(tmpDir, `line_${i + 1}.wav`);
 
-      // Generate line audio with moderate slowdown
-      const lineDuration = await generateAudio(
-        lineText,
-        linePath,
-        "zh-CN-XiaoxiaoNeural",
-        "-40%" // Moderate slowdown for individual lines
-      );
+        // Generate line audio with moderate slowdown
+        const lineDuration = await generateAudio(
+          lineText,
+          linePath,
+          "zh-CN-XiaoxiaoNeural",
+          "-40%" // Moderate slowdown for individual lines
+        );
 
-      // Upload line audio
-      const linePublicId = `poem_${poemId}_line_${i + 1}`;
-      const lineUpload = await uploadToCloudinary(linePath, linePublicId);
+        // Upload line audio
+        const linePublicId = `poem_${poemId}_line_${i + 1}`;
+        const lineUpload = await uploadToCloudinary(linePath, linePublicId);
 
-      // Add to line readings
-      lineReadings.push({
-        lineId: i + 1,
-        text: lineText,
-        pinyin: line.pinyin,
-        url: lineUpload.url,
-        contentType: "audio/wav",
-        duration: lineUpload.duration || lineDuration,
-      });
+        // Add to line readings
+        lineReadings.push({
+          lineId: i + 1,
+          text: lineText,
+          pinyin: line.pinyin,
+          url: lineUpload.url,
+          contentType: "audio/wav",
+          duration: lineUpload.duration || lineDuration,
+        });
+      } catch (lineError) {
+        console.error(`Error generating audio for line ${i + 1}:`, lineError);
+        // Continue with other lines
+      }
     }
 
     // 3. Generate word-by-word audio
@@ -209,53 +327,82 @@ const generatePoemAudio = async (poem: TPoem): Promise<TPoemAudioResources> => {
       const pinyinParts = line.pinyin.split(" ");
 
       // Map pinyin to characters (simplified approach)
-      // Note: This is a simplification. For production use, you would need a more accurate mapping
       for (let i = 0; i < characters.length && i < pinyinParts.length; i++) {
-        const word = characters[i];
+        try {
+          const word = characters[i];
 
-        // Skip if already processed
-        if (processedWords.has(word)) continue;
-        processedWords.add(word);
+          // Skip if already processed or in skip list
+          if (processedWords.has(word) || wordCharactersToSkip.has(word))
+            continue;
+          processedWords.add(word);
 
-        const pinyin = pinyinParts[i] || "";
-        const wordPath = path.join(tmpDir, `word_${getSafeFileName(word)}.wav`);
+          const pinyin = pinyinParts[i] || "";
+          const wordPath = path.join(
+            tmpDir,
+            `word_${getSafeFileName(word)}.wav`
+          );
 
-        // Generate word audio at normal speed
-        const wordDuration = await generateAudio(
-          word,
-          wordPath,
-          "zh-CN-XiaoxiaoNeural", // Female voice for individual characters
-          "-25%" // Slight slowdown for clarity
-        );
+          // Generate word audio at normal speed
+          const wordDuration = await generateAudio(
+            word,
+            wordPath,
+            "zh-CN-XiaoxiaoNeural", // Female voice for individual characters
+            "-25%" // Slight slowdown for clarity
+          );
 
-        // Upload word audio
-        const wordPublicId = `poem_word_${getSafeFileName(word)}`;
-        const wordUpload = await uploadToCloudinary(wordPath, wordPublicId);
+          // Upload word audio
+          const wordPublicId = `poem_word_${getSafeFileName(word)}`;
+          const wordUpload = await uploadToCloudinary(wordPath, wordPublicId);
 
-        // Add to word pronunciations
-        wordPronunciations.push({
-          word,
-          pinyin,
-          url: wordUpload.url,
-          contentType: "audio/wav",
-          duration: wordUpload.duration || wordDuration,
-        });
+          // Add to word pronunciations
+          wordPronunciations.push({
+            word,
+            pinyin,
+            url: wordUpload.url,
+            contentType: "audio/wav",
+            duration: wordUpload.duration || wordDuration,
+          });
+
+          // Add a small delay between words to avoid rate limiting
+          await new Promise((resolve) => setTimeout(resolve, 200));
+        } catch (wordError) {
+          console.error(
+            `Error generating audio for word ${characters[i]}:`,
+            wordError
+          );
+          // Continue with other words
+        }
       }
     }
 
     // Clean up temporary files
     await fs.remove(tmpDir);
 
-    // Return all audio resources
-    return {
+    // Make sure we have at least some content
+    if (!fullPoemUpload.url && lineReadings.length === 0) {
+      throw new Error("Failed to generate any audio for the poem");
+    }
+
+    // Create audio resources object
+    const generatedAudioResources = {
       fullReading: {
-        url: fullPoemUpload.url,
+        url:
+          fullPoemUpload.url ||
+          (lineReadings.length > 0 ? lineReadings[0].url : ""),
         contentType: "audio/wav",
-        duration: fullPoemUpload.duration || fullDuration,
+        duration: fullPoemUpload.duration || fullDuration || 5,
       },
       lineReadings,
       wordPronunciations,
     };
+
+    // Save to database - only if we have some content
+    if (fullPoemUpload.url || lineReadings.length > 0) {
+      await saveAudioResourcesToDatabase(poemId, generatedAudioResources);
+    }
+
+    // Return all audio resources
+    return generatedAudioResources;
   } catch (error) {
     console.error("Error generating poem audio:", error);
 
@@ -272,5 +419,6 @@ const generatePoemAudio = async (poem: TPoem): Promise<TPoemAudioResources> => {
 
 export const PoemAudioService = {
   checkAudioExists,
+  saveAudioResourcesToDatabase,
   generatePoemAudio,
 };
