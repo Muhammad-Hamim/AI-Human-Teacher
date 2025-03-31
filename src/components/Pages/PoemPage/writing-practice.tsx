@@ -35,6 +35,8 @@ export default function WritingPractice({ poem }: WritingPracticeProps) {
   const [currentPos, setCurrentPos] = useState<Point>({ x: 0, y: 0 });
   const [isAnimating, setIsAnimating] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [charError, setCharError] = useState<string | null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationDivRef = useRef<HTMLDivElement>(null);
@@ -88,7 +90,10 @@ export default function WritingPractice({ poem }: WritingPracticeProps) {
   };
 
   // Helper function to set element opacity to avoid TypeScript errors
-  const setElementOpacity = (element: Element | null, opacity: string) => {
+  const setElementOpacity = (
+    element: Element | null | undefined,
+    opacity: string
+  ) => {
     if (element && "style" in element) {
       (element as HTMLElement).style.opacity = opacity;
     }
@@ -116,6 +121,10 @@ export default function WritingPractice({ poem }: WritingPracticeProps) {
   // Initialize Hanzi Writer when character changes
   useEffect(() => {
     if (selectedChar && animationDivRef.current) {
+      // Reset error state
+      setCharError(null);
+      setIsLoading(true);
+
       // Clear previous writer if exists
       if (writerRef.current) {
         writerRef.current = null;
@@ -130,43 +139,57 @@ export default function WritingPractice({ poem }: WritingPracticeProps) {
       const width = canvas?.offsetWidth || 400;
       const height = canvas?.offsetHeight || 400;
 
-      // Create new writer with translucent character
-      writerRef.current = HanziWriter.create(
-        animationDivRef.current,
-        selectedChar,
-        {
-          width: width,
-          height: height,
-          padding: 20,
-          strokeColor: "rgba(0, 0, 0, 0)", // Transparent strokes initially
-          radicalColor: "rgba(0, 0, 0, 0)", // Transparent radicals initially
-          delayBetweenStrokes: 500,
-          strokeAnimationSpeed: 1,
-          outlineColor: "rgba(0, 0, 0, 0.2)",
-          outlineWidth: 2,
-          showCharacter: true,
-          showOutline: true,
-        }
-      );
-
-      // Make the character translucent
       try {
-        const character = animationDivRef.current.querySelector(
-          ".hanzi-writer-character"
+        // Create new writer with translucent character
+        writerRef.current = HanziWriter.create(
+          animationDivRef.current,
+          selectedChar,
+          {
+            width: width,
+            height: height,
+            padding: 20,
+            strokeColor: "rgba(0, 0, 0, 0)", // Transparent strokes initially
+            radicalColor: "rgba(0, 0, 0, 0)", // Transparent radicals initially
+            delayBetweenStrokes: 500,
+            strokeAnimationSpeed: 1,
+            outlineColor: "rgba(0, 0, 0, 0.2)",
+            outlineWidth: 2,
+            showCharacter: true,
+            showOutline: true,
+            onLoadCharDataSuccess: () => {
+              setIsLoading(false);
+
+              // Make the character translucent
+              try {
+                const character = animationDivRef.current?.querySelector(
+                  ".hanzi-writer-character"
+                );
+                setElementOpacity(character, "0.2");
+
+                // Make sure strokes are transparent
+                setStrokeElements("rgba(0, 0, 0, 0)");
+              } catch (e) {
+                console.error("Error adjusting character opacity:", e);
+              }
+
+              // Add grid background after writer is created
+              createGridBackground();
+            },
+            onLoadCharDataError: (error: any) => {
+              console.error("Error loading character data:", error);
+              setIsLoading(false);
+              setCharError(`Could not load stroke data for "${selectedChar}"`);
+            },
+          }
         );
-        setElementOpacity(character, "0.2");
 
-        // Make sure strokes are transparent
-        setStrokeElements("rgba(0, 0, 0, 0)");
+        // Stop animation if it was previously running
+        setIsAnimating(false);
       } catch (e) {
-        console.error("Error adjusting character opacity:", e);
+        console.error("Error creating Hanzi Writer:", e);
+        setIsLoading(false);
+        setCharError(`Error initializing character "${selectedChar}"`);
       }
-
-      // Add grid background after writer is created
-      createGridBackground();
-
-      // Stop animation if it was previously running
-      setIsAnimating(false);
     }
   }, [selectedChar]);
 
@@ -227,6 +250,7 @@ export default function WritingPractice({ poem }: WritingPracticeProps) {
           resetAnimation();
         } catch (e) {
           console.error("Error cancelling animation:", e);
+          setCharError("Error stopping animation. Please try again.");
         }
       }
       setIsAnimating(false);
@@ -234,6 +258,7 @@ export default function WritingPractice({ poem }: WritingPracticeProps) {
       // Start animation
       if (writerRef.current && animationDivRef.current && selectedChar) {
         try {
+          setIsLoading(true);
           // Clear the animation div
           animationDivRef.current.innerHTML = "";
 
@@ -258,24 +283,36 @@ export default function WritingPractice({ poem }: WritingPracticeProps) {
               outlineWidth: 2,
               showCharacter: true,
               showOutline: true,
+              onLoadCharDataSuccess: () => {
+                setIsLoading(false);
+
+                // Add grid background after writer is created
+                createGridBackground();
+
+                // Start the animation
+                writerRef.current.animateCharacter({
+                  onComplete: () => {
+                    // Reset back to transparent strokes when done
+                    resetAnimation();
+                    setIsAnimating(false);
+                  },
+                });
+
+                setIsAnimating(true);
+              },
+              onLoadCharDataError: (error: any) => {
+                console.error("Error loading character data:", error);
+                setIsLoading(false);
+                setCharError(
+                  `Could not load stroke data for "${selectedChar}"`
+                );
+              },
             }
           );
-
-          // Add grid background after writer is created
-          createGridBackground();
-
-          // Start the animation
-          writerRef.current.animateCharacter({
-            onComplete: () => {
-              // Reset back to transparent strokes when done
-              resetAnimation();
-              setIsAnimating(false);
-            },
-          });
-
-          setIsAnimating(true);
         } catch (e) {
           console.error("Error starting animation:", e);
+          setIsLoading(false);
+          setCharError(`Error animating character "${selectedChar}"`);
         }
       }
     }
@@ -290,6 +327,7 @@ export default function WritingPractice({ poem }: WritingPracticeProps) {
 
         // Completely remove and reinitialize the writer
         if (animationDivRef.current && selectedChar) {
+          setIsLoading(true);
           // Clear the animation div
           animationDivRef.current.innerHTML = "";
 
@@ -314,23 +352,35 @@ export default function WritingPractice({ poem }: WritingPracticeProps) {
               outlineWidth: 2,
               showCharacter: true,
               showOutline: true,
+              onLoadCharDataSuccess: () => {
+                setIsLoading(false);
+
+                // Make character translucent again
+                const character = animationDivRef.current?.querySelector(
+                  ".hanzi-writer-character"
+                );
+                setElementOpacity(character, "0.2");
+
+                // Make strokes transparent
+                setStrokeElements("rgba(0, 0, 0, 0)");
+
+                // Add grid background after writer is created
+                createGridBackground();
+              },
+              onLoadCharDataError: (error: any) => {
+                console.error("Error loading character data:", error);
+                setIsLoading(false);
+                setCharError(
+                  `Could not load stroke data for "${selectedChar}"`
+                );
+              },
             }
           );
-
-          // Make character translucent again
-          const character = animationDivRef.current.querySelector(
-            ".hanzi-writer-character"
-          );
-          setElementOpacity(character, "0.2");
-
-          // Make strokes transparent
-          setStrokeElements("rgba(0, 0, 0, 0)");
-
-          // Add grid background after writer is created
-          createGridBackground();
         }
       } catch (e) {
         console.error("Error resetting animation:", e);
+        setIsLoading(false);
+        setCharError(`Error resetting animation for "${selectedChar}"`);
       }
     }
 
@@ -698,6 +748,44 @@ export default function WritingPractice({ poem }: WritingPracticeProps) {
                   className="absolute inset-0 pointer-events-none flex items-center justify-center"
                   style={{ zIndex: 10 }}
                 />
+
+                {/* Loading indicator */}
+                {isLoading && (
+                  <div
+                    className="absolute inset-0 bg-background/50 flex items-center justify-center"
+                    style={{ zIndex: 20 }}
+                  >
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="animate-spin h-10 w-10 border-4 border-primary border-t-transparent rounded-full"></div>
+                      <div className="text-muted-foreground">
+                        Loading character data...
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Error message */}
+                {charError && (
+                  <div
+                    className="absolute inset-0 bg-background/50 flex items-center justify-center"
+                    style={{ zIndex: 20 }}
+                  >
+                    <div className="flex flex-col items-center gap-2 max-w-xs text-center">
+                      <div className="text-destructive text-4xl">!</div>
+                      <div className="text-destructive font-medium">
+                        {charError}
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={() => setCharError(null)}
+                        variant="outline"
+                        className="mt-2"
+                      >
+                        Dismiss
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </>
             ) : (
               <div className="w-full h-[400px] flex items-center justify-center bg-muted/30 rounded-lg">
