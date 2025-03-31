@@ -77,6 +77,40 @@ export interface PoemInsightsResponse {
   };
 }
 
+export interface VocabularyTranslation {
+  meaning: string;
+  partOfSpeech: string;
+}
+
+export interface VocabularyExample {
+  sentence: string;
+  translation: string;
+  pinyin: string;
+}
+
+export interface VocabularyExplanation {
+  word: string;
+  pinyin: string;
+  translation: VocabularyTranslation[];
+  example: VocabularyExample[];
+  level?: string;
+}
+
+export interface GetVocabularyExplanationRequest {
+  poemId: string;
+  word: string;
+}
+
+export interface GetAllVocabularyExplanationsRequest {
+  poemId: string;
+}
+
+export interface AllVocabularyExplanationsResponse {
+  data: {
+    vocabulary: VocabularyExplanation[];
+  };
+}
+
 export const deepSeekApi = createApi({
   reducerPath: "deepSeekApi",
   baseQuery: fetchBaseQuery({
@@ -159,6 +193,29 @@ export const deepSeekApi = createApi({
         method: "POST",
         body: request,
       }),
+    }),
+
+    getVocabularyExplanation: builder.query<
+      { data: VocabularyExplanation },
+      GetVocabularyExplanationRequest
+    >({
+      query: (request) => ({
+        url: `ai/vocabulary-explanation/${request.poemId}`,
+        method: "GET",
+        params: { word: request.word },
+      }),
+      keepUnusedDataFor: 600, // Cache for 10 minutes
+    }),
+
+    getAllVocabularyExplanations: builder.query<
+      AllVocabularyExplanationsResponse,
+      GetAllVocabularyExplanationsRequest
+    >({
+      query: (request) => ({
+        url: `vocabulary/poem/${request.poemId}?process=true`,
+        method: "GET",
+      }),
+      keepUnusedDataFor: 600, // Cache for 10 minutes
     }),
 
     // Mock endpoints for development
@@ -470,4 +527,6 @@ export const {
   useGetMockCreativeWritingQuery,
   useGetPoemNarrationMutation,
   useGetPoemInsightsMutation,
+  useGetVocabularyExplanationQuery,
+  useGetAllVocabularyExplanationsQuery,
 } = deepSeekApi;

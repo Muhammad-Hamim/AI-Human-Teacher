@@ -3,7 +3,29 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, XCircle, Volume2, RefreshCw, Pause } from "lucide-react";
+import {
+  CheckCircle,
+  XCircle,
+  Volume2,
+  RefreshCw,
+  Pause,
+  BookOpen,
+  X,
+  Loader2,
+} from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogClose,
+} from "@/components/ui/dialog";
+import { Separator } from "@/components/ui/separator";
+import {
+  useGetVocabularyExplanationQuery,
+  useGetAllVocabularyExplanationsQuery,
+} from "@/redux/features/interactivePoem/deepSeekApi";
 
 interface PoemLine {
   chinese: string;
@@ -66,6 +88,21 @@ interface LanguageExercisesProps {
   poem: Poem;
 }
 
+interface VocabularyExplanationProps {
+  word: string;
+  poemId: string;
+  onClose: () => void;
+}
+
+// Define a proper type for vocabulary explanation
+interface VocabularyExplanationItem {
+  word: string;
+  pinyin: string;
+  level?: string;
+  translation: Array<{ meaning: string; partOfSpeech: string }>;
+  example: Array<{ sentence: string; pinyin: string; translation: string }>;
+}
+
 export default function LanguageExercises({ poem }: LanguageExercisesProps) {
   const [vocabularyTab, setVocabularyTab] = useState("all");
   const [quizType, setQuizType] = useState("fillBlank");
@@ -73,6 +110,38 @@ export default function LanguageExercises({ poem }: LanguageExercisesProps) {
   const [userAnswers, setUserAnswers] = useState<string[]>([]);
   const [showResults, setShowResults] = useState(false);
   const [score, setScore] = useState(0);
+  const [selectedWord, setSelectedWord] = useState<string | null>(null);
+  const [vocabularyExplanations, setVocabularyExplanations] = useState<
+    VocabularyExplanationItem[]
+  >([]);
+  const [isLoadingExplanations, setIsLoadingExplanations] = useState(false);
+  const [showVocabularyExplanations, setShowVocabularyExplanations] =
+    useState(false);
+  const [explanationsTab, setExplanationsTab] = useState("all");
+  const [shouldFetchVocabulary, setShouldFetchVocabulary] = useState(false);
+
+  // Initialize the query but don't fetch automatically
+  const { data: vocabularyData, isFetching } =
+    useGetAllVocabularyExplanationsQuery(
+      { poemId: poem._id },
+      { skip: !shouldFetchVocabulary }
+    );
+
+  // When data is received, update the state
+  useEffect(() => {
+    if (vocabularyData?.data?.vocabulary) {
+      setVocabularyExplanations(vocabularyData.data.vocabulary);
+      setIsLoadingExplanations(false);
+      setShouldFetchVocabulary(false); // Reset the fetch flag
+    }
+  }, [vocabularyData]);
+
+  // Update loading state when fetching changes
+  useEffect(() => {
+    if (isFetching) {
+      setIsLoadingExplanations(true);
+    }
+  }, [isFetching]);
 
   // Audio reference
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -101,6 +170,20 @@ export default function LanguageExercises({ poem }: LanguageExercisesProps) {
       }
     };
   }, []);
+
+  const handleGetVocabularyExplanations = () => {
+    setShowVocabularyExplanations(true);
+    setShouldFetchVocabulary(true); // This will trigger the query
+  };
+
+  // Filter vocabulary explanations by HSK level
+  const filterExplanationsByLevel = (level: string) => {
+    if (level === "all") {
+      return vocabularyExplanations;
+    }
+
+    return vocabularyExplanations.filter((word) => word.level === level);
+  };
 
   // Generate quiz questions when quiz type changes
   useEffect(() => {
@@ -383,6 +466,10 @@ export default function LanguageExercises({ poem }: LanguageExercisesProps) {
     );
   };
 
+  const openWordExplanation = (word: string) => {
+    setSelectedWord(word);
+  };
+
   return (
     <div className="p-6">
       <Tabs defaultValue="vocabulary">
@@ -393,7 +480,218 @@ export default function LanguageExercises({ poem }: LanguageExercisesProps) {
 
         <TabsContent value="vocabulary">
           <div className="mb-6">
-            <h2 className="text-2xl font-bold mb-4">Vocabulary</h2>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-bold">Vocabulary</h2>
+              {!showVocabularyExplanations && (
+                <Button
+                  variant="outline"
+                  onClick={handleGetVocabularyExplanations}
+                >
+                  <BookOpen size={16} className="mr-2" />
+                  Get All Explanations
+                </Button>
+              )}
+            </div>
+
+            {/* Default character display */}
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
+              {Array.from(
+                new Set(poem.lines.flatMap((line) => line.chinese.split("")))
+              ).map((character, index) => (
+                <Card key={index} className="overflow-hidden">
+                  <CardHeader className="p-4 pb-2 flex flex-row items-center justify-between">
+                    <CardTitle className="text-2xl">{character}</CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-4 pt-2">
+                    <div className="flex gap-2 mt-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2"
+                        onClick={() => speak(character)}
+                      >
+                        <Volume2 size={16} className="mr-1" />
+                        Pronounce
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 px-2"
+                        onClick={() => openWordExplanation(character)}
+                      >
+                        <BookOpen size={16} className="mr-1" />
+                        Details
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            {/* Display vocabulary explanations when requested */}
+            {showVocabularyExplanations && (
+              <div className="mt-8">
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-xl font-bold">
+                    Complete Vocabulary Guide
+                  </h2>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowVocabularyExplanations(false)}
+                  >
+                    <X size={16} className="mr-2" />
+                    Hide Explanations
+                  </Button>
+                </div>
+
+                {isLoadingExplanations ? (
+                  <div className="flex flex-col items-center justify-center py-10">
+                    <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
+                    <p className="text-muted-foreground">
+                      Loading vocabulary details...
+                    </p>
+                  </div>
+                ) : vocabularyExplanations.length > 0 ? (
+                  <div className="space-y-6">
+                    <Tabs
+                      value={explanationsTab}
+                      onValueChange={setExplanationsTab}
+                    >
+                      <TabsList className="mb-4">
+                        <TabsTrigger value="all">All</TabsTrigger>
+                        <TabsTrigger value="HSK1">HSK1</TabsTrigger>
+                        <TabsTrigger value="HSK2">HSK2</TabsTrigger>
+                        <TabsTrigger value="HSK3">HSK3</TabsTrigger>
+                        <TabsTrigger value="HSK4">HSK4+</TabsTrigger>
+                      </TabsList>
+
+                      <div className="space-y-6">
+                        {filterExplanationsByLevel(explanationsTab).map(
+                          (wordItem, index) => (
+                            <Card key={index} className="overflow-hidden">
+                              <CardHeader className="p-4 pb-2 bg-muted/50">
+                                <div className="flex items-center justify-between">
+                                  <CardTitle className="text-xl flex items-center">
+                                    {wordItem.word}
+                                    <span className="text-base font-normal text-muted-foreground ml-2">
+                                      {wordItem.pinyin}
+                                    </span>
+                                    {wordItem.level && (
+                                      <Badge className="ml-2" variant="outline">
+                                        {wordItem.level}
+                                      </Badge>
+                                    )}
+                                  </CardTitle>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 p-0"
+                                    onClick={() => {
+                                      const utterance =
+                                        new SpeechSynthesisUtterance(
+                                          wordItem.word
+                                        );
+                                      const voices =
+                                        window.speechSynthesis.getVoices();
+                                      const chineseVoice = voices.find(
+                                        (voice) =>
+                                          voice.lang.includes("zh") ||
+                                          voice.lang.includes("cmn")
+                                      );
+                                      if (chineseVoice) {
+                                        utterance.voice = chineseVoice;
+                                      }
+                                      window.speechSynthesis.speak(utterance);
+                                    }}
+                                  >
+                                    <Volume2 size={16} />
+                                  </Button>
+                                </div>
+                              </CardHeader>
+                              <CardContent className="p-4">
+                                {/* Translations section */}
+                                <div className="mb-4">
+                                  <h3 className="font-medium text-lg mb-2">
+                                    Meanings
+                                  </h3>
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                    {wordItem.translation.map(
+                                      (
+                                        t: {
+                                          meaning: string;
+                                          partOfSpeech: string;
+                                        },
+                                        i: number
+                                      ) => (
+                                        <div
+                                          key={i}
+                                          className="pl-2 border-l-2 border-primary"
+                                        >
+                                          <p className="font-medium">
+                                            {t.meaning}
+                                          </p>
+                                          <Badge
+                                            variant="outline"
+                                            className="mt-1"
+                                          >
+                                            {t.partOfSpeech}
+                                          </Badge>
+                                        </div>
+                                      )
+                                    )}
+                                  </div>
+                                </div>
+
+                                <Separator className="my-3" />
+
+                                {/* Examples section */}
+                                <div>
+                                  <h3 className="font-medium text-lg mb-2">
+                                    Examples
+                                  </h3>
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {wordItem.example.map(
+                                      (
+                                        example: {
+                                          sentence: string;
+                                          pinyin: string;
+                                          translation: string;
+                                        },
+                                        i: number
+                                      ) => (
+                                        <div
+                                          key={i}
+                                          className="bg-muted/50 rounded-md p-3"
+                                        >
+                                          <p className="font-medium text-base">
+                                            {example.sentence}
+                                          </p>
+                                          <p className="text-sm text-muted-foreground mb-1">
+                                            {example.pinyin}
+                                          </p>
+                                          <p className="text-sm italic">
+                                            {example.translation}
+                                          </p>
+                                        </div>
+                                      )
+                                    )}
+                                  </div>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          )
+                        )}
+                      </div>
+                    </Tabs>
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <p>No vocabulary explanations available.</p>
+                  </div>
+                )}
+              </div>
+            )}
 
             <Tabs value={vocabularyTab} onValueChange={setVocabularyTab}>
               <TabsList className="mb-4">
@@ -415,23 +713,34 @@ export default function LanguageExercises({ poem }: LanguageExercisesProps) {
                       <CardContent className="p-4 pt-2">
                         <p className="text-gray-500 mb-1">{word.pinyin}</p>
                         <p className="font-medium">{word.meaning}</p>
-                        <Button
-                          variant={
-                            isPlaying &&
+                        <div className="flex gap-2 mt-2">
+                          <Button
+                            variant={
+                              isPlaying &&
+                              audioRef.current?.src.includes(word.word)
+                                ? "secondary"
+                                : "ghost"
+                            }
+                            size="sm"
+                            className="h-8 px-2"
+                            onClick={() => speak(word.word)}
+                          >
+                            <Volume2 size={16} className="mr-1" />
+                            {isPlaying &&
                             audioRef.current?.src.includes(word.word)
-                              ? "secondary"
-                              : "ghost"
-                          }
-                          size="sm"
-                          className="mt-2 h-8 px-2"
-                          onClick={() => speak(word.word)}
-                        >
-                          <Volume2 size={16} className="mr-1" />
-                          {isPlaying &&
-                          audioRef.current?.src.includes(word.word)
-                            ? "Playing..."
-                            : "Pronounce"}
-                        </Button>
+                              ? "Playing..."
+                              : "Pronounce"}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 px-2"
+                            onClick={() => openWordExplanation(word.word)}
+                          >
+                            <BookOpen size={16} className="mr-1" />
+                            Details
+                          </Button>
+                        </div>
                       </CardContent>
                     </Card>
                   )
@@ -576,6 +885,98 @@ export default function LanguageExercises({ poem }: LanguageExercisesProps) {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Vocabulary Explanation Dialog */}
+      {selectedWord && (
+        <VocabularyExplanationDialog
+          word={selectedWord}
+          poemId={poem._id}
+          onClose={() => setSelectedWord(null)}
+        />
+      )}
     </div>
+  );
+}
+
+// Vocabulary Explanation Dialog Component
+function VocabularyExplanationDialog({
+  word,
+  poemId,
+  onClose,
+}: VocabularyExplanationProps) {
+  const { data, isLoading, error } = useGetVocabularyExplanationQuery(
+    { poemId, word },
+    { skip: !word }
+  );
+
+  const wordData = data?.data;
+
+  return (
+    <Dialog open={!!word} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <div className="flex items-center justify-between">
+            <DialogTitle className="text-2xl">{word}</DialogTitle>
+            <DialogClose className="h-8 w-8 p-0">
+              <X size={18} />
+            </DialogClose>
+          </div>
+          {wordData && (
+            <DialogDescription className="text-lg text-muted-foreground">
+              {wordData.pinyin}
+            </DialogDescription>
+          )}
+        </DialogHeader>
+
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center py-10">
+            <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
+            <p className="text-muted-foreground">Loading word details...</p>
+          </div>
+        ) : error ? (
+          <div className="text-center py-8 text-destructive">
+            <p>Failed to load word details.</p>
+            <Button variant="outline" className="mt-4" onClick={onClose}>
+              Close
+            </Button>
+          </div>
+        ) : wordData ? (
+          <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
+            {/* Translations section */}
+            <div>
+              <h3 className="font-medium text-lg mb-2">Meanings</h3>
+              <div className="space-y-2">
+                {wordData.translation.map((t, i) => (
+                  <div key={i} className="pl-2 border-l-2 border-primary">
+                    <p className="font-medium">{t.meaning}</p>
+                    <Badge variant="outline" className="mt-1">
+                      {t.partOfSpeech}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Examples section */}
+            <div>
+              <h3 className="font-medium text-lg mb-2">Examples</h3>
+              <div className="space-y-4">
+                {wordData.example.map((example, i) => (
+                  <div key={i} className="bg-muted/50 rounded-md p-3">
+                    <p className="font-medium text-base">{example.sentence}</p>
+                    <p className="text-sm text-muted-foreground mb-1">
+                      {example.pinyin}
+                    </p>
+                    <p className="text-sm italic">{example.translation}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </DialogContent>
+    </Dialog>
   );
 }
