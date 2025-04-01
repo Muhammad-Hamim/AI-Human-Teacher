@@ -75,7 +75,7 @@ const generateImagerySymbolismWithAI = async (
 
 要求：
 1. 识别诗歌中3-5个重要的意象元素或象征
-2. "element_name"应该是英文且具有描述性（例如："moonlight", "mountain", "flowing_water"等）
+2. "element_name"应该使用中文（例如："明月", "高山", "流水"等）
 3. "description"应该解释该元素在这首特定诗歌中的含义和重要性（用中文描述）
 4. "keywords"数组应该包含诗中与该元素相关的实际汉字
 5. "culturalSignificance"应列出这个象征在中国文学传统中的3-4个更广泛的文化含义（用中文描述）
@@ -194,7 +194,7 @@ const createFallbackImagerySymbolism = (poem: TPoem): TImagerySymbolism => {
 
   // Create a basic fallback with one generic element
   return {
-    natural_imagery: {
+    自然意象: {
       description: `《${poem.title}》中的自然意象是诗人${poem.author}表达情感的重要手段。这些意象展现了中国古典诗歌中人与自然的和谐关系，并通过自然现象来映射人类的情感和哲学思考。`,
       keywords: uniqueCharacters.slice(0, 5),
       culturalSignificance: [
