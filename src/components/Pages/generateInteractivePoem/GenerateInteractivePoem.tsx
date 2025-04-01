@@ -25,7 +25,6 @@ import {
 import { motion } from "framer-motion";
 import {
   useGetPoemsQuery,
-  useGetPoemByIdQuery,
 } from "@/redux/features/poems/poemsApi";
 import { Poem } from "@/redux/features/poems/poemsApi";
 import ThinkingAnimation from "../AskAi/Conversation/ThinkingAnimation";
@@ -112,9 +111,6 @@ const GenerateInteractivePoem = () => {
   const navigate = useNavigate();
 
   const { data: poemsData, isLoading: isPoemsLoading } = useGetPoemsQuery();
-  const { data: poemData } = useGetPoemByIdQuery(currentPoemId || "", {
-    skip: !currentPoemId,
-  });
 
   const { register, handleSubmit, reset, watch } = useForm<FormInputs>({
     defaultValues: {
@@ -340,22 +336,8 @@ Here are some tips to help you get started:
     }
     // Check for confirmation to proceed with the selected poem
     else if (lowerMessage.includes("yes") && currentPoemId) {
-      setTimeout(() => {
-        setMessages((prev) => [
-          ...prev,
-          {
-            type: "bot",
-            content: "Great! Taking you to the interactive poem page now...",
-          },
-        ]);
-
-        // Navigate to the poem page with the selected poem data
-        if (poemData) {
-          setTimeout(() => {
-            navigate(`/poem/${poemData.data._id}`);
-          }, 1000);
-        }
-      }, 800);
+      // Navigate immediately to the poem page
+      navigate(`/poem/${currentPoemId}`);
     }
     // Handle general case
     else {
@@ -410,18 +392,8 @@ Here are some tips to help you get started:
   };
 
   const handlePoemSelection = (poemId: string) => {
-    const selectedPoem = poemsData?.data.find((poem) => poem._id === poemId);
-
-    if (selectedPoem) {
-      setCurrentPoemId(poemId);
-      setMessages((prev) => [
-        ...prev,
-        {
-          type: "bot",
-          content: `You've selected "${selectedPoem.title}" by ${selectedPoem.author}. Would you like to study this poem interactively? Type "yes" to proceed.`,
-        },
-      ]);
-    }
+    // Navigate immediately to the poem page with the poem ID
+    navigate(`/poem/${poemId}`);
   };
 
   const handleViewCollection = () => {

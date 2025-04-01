@@ -292,8 +292,8 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
         // Add language context to the prompt
         const contextualPrompt =
           language === "zh-CN"
-            ? `[用户使用中文] ${query}`
-            : `[User is speaking English] ${query}`;
+            ? `${query}`
+            : ` ${query}`;
 
         // Use requestAiResponse instead of streamAiResponse
         const response = await requestAiResponse({

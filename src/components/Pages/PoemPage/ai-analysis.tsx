@@ -12,6 +12,7 @@ interface AiAnalysisProps {
 
 export default function AiAnalysis({ poem }: AiAnalysisProps) {
   const [activeTab, setActiveTab] = useState("emotional")
+  console.log(poem)
 
   return (
     <div className="p-6">

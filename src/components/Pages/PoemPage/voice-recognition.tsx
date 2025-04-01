@@ -216,11 +216,11 @@ export default function VoiceRecognition({ poem }: VoiceRecognitionProps) {
       // Limit to showing just a few of the unmatched characters for clarity
       const displayChars = unmatchedChars.slice(0, 3);
       if (unmatchedChars.length > 3) {
-        feedbackMessage += ` Pay particular attention to characters like "${displayChars.join(
+        feedbackMessage += ` Focus on pronouncing these characters from the text: "${displayChars.join(
           '", "'
         )}", and ${unmatchedChars.length - 3} others.`;
       } else {
-        feedbackMessage += ` Pay particular attention to characters like "${displayChars.join(
+        feedbackMessage += ` Focus on pronouncing these characters from the text: "${displayChars.join(
           '", "'
         )}".`;
       }
@@ -497,7 +497,7 @@ export default function VoiceRecognition({ poem }: VoiceRecognitionProps) {
                   {unmatchedChars.length > 0 && (
                     <div className="mt-3 p-2 border border-gray-700/50 rounded-md bg-gray-800/60">
                       <p className="text-xs font-medium mb-1 text-gray-300">
-                        Characters to practice:
+                        Characters from the text to focus on:
                       </p>
                       <div className="flex flex-wrap gap-2">
                         {unmatchedChars.slice(0, 8).map((char, idx) => (
