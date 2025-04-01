@@ -16,6 +16,21 @@ interface ImagerySymbolismData {
   };
 }
 
+interface PoemImageResponse {
+  success: boolean;
+  message: string;
+  data: {
+    poem: {
+      id: string;
+      title: string;
+      author: string;
+      dynasty: string;
+    };
+    imageBase64: string;
+    prompt: string;
+  };
+}
+
 export const poemInsightsApi = createApi({
   reducerPath: "poemInsightsApi",
   baseQuery: fetchBaseQuery({ baseUrl: "http://localhost:5000/api/v1/" }),
@@ -29,7 +44,14 @@ export const poemInsightsApi = createApi({
         method: "GET",
       }),
     }),
+    getPoemImage: builder.mutation<PoemImageResponse, string>({
+      query: (poemId) => ({
+        url: `poems/image/${poemId}`,
+        method: "GET",
+      }),
+    }),
   }),
 });
 
-export const { useGetPoemImagerySymbolismMutation } = poemInsightsApi;
+export const { useGetPoemImagerySymbolismMutation, useGetPoemImageMutation } =
+  poemInsightsApi;
