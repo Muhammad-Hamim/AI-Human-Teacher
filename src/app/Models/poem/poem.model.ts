@@ -1,5 +1,10 @@
 import { Schema, model } from "mongoose";
-import { TLine, TPoem, TPoemAudioResources } from "./poem.interface";
+import {
+  TLine,
+  TPoem,
+  TPoemAudioResources,
+  TImagerySymbolism,
+} from "./poem.interface";
 
 const lineSchema = new Schema<TLine>(
   {
@@ -64,6 +69,17 @@ const audioResourcesSchema = new Schema<TPoemAudioResources>(
   { _id: false }
 );
 
+// Create a schema for the imagery and symbolism items
+const symbolismItemSchema = new Schema(
+  {
+    description: String,
+    keywords: [String],
+    culturalSignificance: [String],
+    icon: String,
+  },
+  { _id: false }
+);
+
 const poemSchema = new Schema<TPoem>(
   {
     title: {
@@ -89,6 +105,11 @@ const poemSchema = new Schema<TPoem>(
     historicalCulturalContext: {
       type: String,
       required: true,
+    },
+    imageryAndSymbolism: {
+      type: Map,
+      of: symbolismItemSchema,
+      required: false,
     },
     audioResources: {
       type: audioResourcesSchema,

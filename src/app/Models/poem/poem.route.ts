@@ -2,13 +2,20 @@ import { Router } from "express";
 import { PoemController } from "./poem.controller";
 import validateRequest from "../../middlewares/validateRequest";
 import { PoemValidation } from "./poem.validation";
+import { ImagerySymbolismController } from "./imagery-symbolism.controller";
 
 const router = Router();
 
 // Get all poems
 router.get("/", PoemController.getAllPoems);
 
-// Get a single poem
+// Imagery and Symbolism route - always generates fresh content
+router.get(
+  "/imagery-symbolism/:poemId",
+  ImagerySymbolismController.getImagerySymbolism
+);
+
+// Get poem by ID - keep this after more specific routes
 router.get("/:id", PoemController.getPoemById);
 
 // Create a new poem

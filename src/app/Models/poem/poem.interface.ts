@@ -28,6 +28,22 @@ export type TPoemAudioResources = {
   wordPronunciations: TWordPronunciation[];
 };
 
+export type TWord = {
+  word: string;
+  pinyin: string;
+};
+
+export type TSymbolismItem = {
+  description: string;
+  keywords: string[];
+  culturalSignificance: string[];
+  icon: string;
+};
+
+export type TImagerySymbolism = {
+  [key: string]: TSymbolismItem;
+};
+
 export type TPoem = {
   _id?: string;
   title: string;
@@ -36,6 +52,7 @@ export type TPoem = {
   dynasty: string;
   explanation: string;
   historicalCulturalContext: string;
+  imageryAndSymbolism?: TImagerySymbolism;
   audioResources?: TPoemAudioResources;
   createdAt?: Date;
   updatedAt?: Date;
