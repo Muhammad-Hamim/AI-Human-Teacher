@@ -3,6 +3,7 @@ import { PoemController } from "./poem.controller";
 import validateRequest from "../../middlewares/validateRequest";
 import { PoemValidation } from "./poem.validation";
 import { ImagerySymbolismController } from "./imagery-symbolism.controller";
+import { PoemImageController } from "./poem-image.controller";
 
 const router = Router();
 
@@ -14,6 +15,9 @@ router.get(
   "/imagery-symbolism/:poemId",
   ImagerySymbolismController.getImagerySymbolism
 );
+
+// Poem Image generation route
+router.get("/image/:poemId", PoemImageController.generatePoemImage);
 
 // Get poem by ID - keep this after more specific routes
 router.get("/:id", PoemController.getPoemById);
