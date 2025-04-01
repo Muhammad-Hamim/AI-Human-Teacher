@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Loader2, History, BookOpen } from "lucide-react";
 import { useGetPoemInsightsMutation } from "@/redux/features/interactivePoem/deepSeekApi";
+import MarkdownRenderer from "@/components/common/MarkdownRenderer";
 
 interface CulturalInsightsProps {
   poem: any;
@@ -86,8 +87,10 @@ export default function CulturalInsights({ poem }: CulturalInsightsProps) {
                     <BookOpen className="h-5 w-5 text-blue-500" />
                     <CardTitle className="text-lg">Cultural Context</CardTitle>
                   </CardHeader>
-                  <CardContent className="p-4 whitespace-pre-line">
-                    {insights.culturalInsights.text}
+                  <CardContent className="p-4">
+                    <MarkdownRenderer
+                      content={insights.culturalInsights.text}
+                    />
 
                     <div className="mt-4 text-sm text-muted-foreground">
                       Generated on:{" "}

@@ -23,9 +23,7 @@ import {
   TooltipProvider,
 } from "@/components/ui/tooltip";
 import { motion } from "framer-motion";
-import {
-  useGetPoemsQuery,
-} from "@/redux/features/poems/poemsApi";
+import { useGetPoemsQuery } from "@/redux/features/poems/poemsApi";
 import { Poem } from "@/redux/features/poems/poemsApi";
 import ThinkingAnimation from "../AskAi/Conversation/ThinkingAnimation";
 
