@@ -307,13 +307,18 @@ li {
 }
 
 .stream-message-animation::after {
-  content: '';
+  content: "";
   position: absolute;
   bottom: 0;
   left: 0;
   height: 2px;
   width: 100%;
-  background: linear-gradient(90deg, transparent, rgba(99, 102, 241, 0.6), transparent);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(99, 102, 241, 0.6),
+    transparent
+  );
   animation: stream-message-progress 2s infinite;
 }
 
@@ -351,4 +356,3 @@ li {
   --card-foreground: 0 0% 100%;
   --border: 0 0% 100%;
 }
-

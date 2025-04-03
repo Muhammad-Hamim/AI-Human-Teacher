@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Send } from "lucide-react";
 import VoiceChatButton from "./VoiceChatButton";
 import ReactMarkdown from "react-markdown";
+import rehypeRaw from "rehype-raw";
 
 /**
  * Example component showing how to integrate the voice chat feature
@@ -145,7 +146,10 @@ export default function VoiceChatExample() {
                 }`}
               >
                 {message.sender === "ai" ? (
-                  <ReactMarkdown components={markdownComponents}>
+                  <ReactMarkdown
+                    components={markdownComponents}
+                    rehypePlugins={[rehypeRaw]}
+                  >
                     {message.content}
                   </ReactMarkdown>
                 ) : (

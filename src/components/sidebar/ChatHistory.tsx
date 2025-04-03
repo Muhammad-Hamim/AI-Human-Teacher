@@ -33,7 +33,9 @@ import { TChatHistory } from "@/types/chat/TChatHistory";
 export function ChatHistory() {
   const [searchQuery, setSearchQuery] = useState("");
   const navigate = useNavigate();
-  const { data: chatHistory = [], isLoading } = useGetChatHistoryQuery("641e23bc79b28a2f9c8d4567");
+  const { data: chatHistory = [], isLoading } = useGetChatHistoryQuery(
+    "641e23bc79b28a2f9c8d4567"
+  );
   const { isMobile } = useSidebar();
   const handleNewChat = () => {
     navigate("/");

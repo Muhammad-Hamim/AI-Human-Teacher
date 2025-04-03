@@ -31,6 +31,7 @@ import { toast } from "sonner";
 import AudioAnalyzer from "./AudioAnalyzer";
 import SpeechWaveform from "./SpeechWaveform";
 import TeacherAnimation from "./TeacherAnimation";
+import rehypeRaw from "rehype-raw";
 
 // Type declarations for browser APIs
 declare global {
@@ -291,9 +292,7 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
       try {
         // Add language context to the prompt
         const contextualPrompt =
-          language === "zh-CN"
-            ? `${query}`
-            : ` ${query}`;
+          language === "zh-CN" ? `${query}` : ` ${query}`;
 
         // Use requestAiResponse instead of streamAiResponse
         const response = await requestAiResponse({
@@ -491,7 +490,10 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5 }}
       >
-        <ReactMarkdown components={markdownComponents}>
+        <ReactMarkdown
+          components={markdownComponents}
+          rehypePlugins={[rehypeRaw]}
+        >
           {aiResponse}
         </ReactMarkdown>
       </motion.div>

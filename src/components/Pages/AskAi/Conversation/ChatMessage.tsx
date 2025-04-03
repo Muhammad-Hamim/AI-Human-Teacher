@@ -45,8 +45,8 @@ const ChatMessage = ({
       <div className="flex flex-col items-center justify-center h-full text-center p-4">
         <h1 className="text-2xl font-bold mb-2">AI Human Teacher</h1>
         <p className="text-muted-foreground max-w-md">
-          Ask anything about your lessons, get help with homework, or practice
-          language skills including Chinese.
+          Ask anything about Chinese poem, get help with poem learning, 
+          practice pronunciation.
         </p>
       </div>
     );

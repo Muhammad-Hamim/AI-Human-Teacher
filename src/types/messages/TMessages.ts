@@ -28,4 +28,5 @@ export type TMessage = {
   createdAt?: Date;
   updatedAt?: Date;
   audio?: TAudio;
+  content?: string;
 };

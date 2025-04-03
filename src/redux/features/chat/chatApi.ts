@@ -13,31 +13,58 @@ export const chatApi = createApi({
       TMessage,
       { prompt: string; chatId: string }
     >({
-      query: ({ prompt, chatId }) => {
-        const message: TMessage = {
+      queryFn: async ({ prompt, chatId }) => {
+        // Create a message structure where content is a direct property of the message object
+        const message = {
+          chatId,
+          userId: "641e23bc79b28a2f9c8d4567",
           user: {
             senderId: "641e23bc79b28a2f9c8d4567",
             senderType: "user",
           },
+          content: prompt, // This is directly on the message object, not nested
           message: {
+            // Also include in the nested message object for backward compatibility
             content: prompt,
             contentType: "text",
           },
-          chatId,
           isAIResponse: false,
-          userId: "641e23bc79b28a2f9c8d4567",
           isDeleted: false,
         };
-        console.log("Message:", message);
-        return {
-          url: "/ai/chat/process-message",
-          method: "POST",
-          body: {
-            message,
-            modelName: deepseekModel,
-            options: { temperature: 1, maxToken: 2000 },
+
+        const body = {
+          message,
+          modelName: deepseekModel,
+          options: {
+            temperature: 0.7,
+            maxToken: 4000,
           },
         };
+
+        console.log("Request body structure:", JSON.stringify(body, null, 2));
+
+        try {
+          const response = await fetch(
+            "http://localhost:5000/api/v1/ai/chat/process-message",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(body),
+            }
+          );
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            console.error("Error response:", errorData);
+            return { error: errorData };
+          }
+
+          const data = await response.json();
+          return { data };
+        } catch (error) {
+          console.error("API request failed:", error);
+          return { error: { status: "FETCH_ERROR", error: String(error) } };
+        }
       },
       invalidatesTags: (result, error, { chatId }) => [
         { type: "Messages", id: chatId },
@@ -54,25 +81,30 @@ export const chatApi = createApi({
       { prompt: string; chatId: string; onChunk: (chunk: string) => void }
     >({
       queryFn: async ({ prompt, chatId, onChunk }) => {
+        // Use the same message structure as requestAiResponse
         const message = {
+          chatId,
+          userId: "641e23bc79b28a2f9c8d4567",
           user: {
             senderId: "641e23bc79b28a2f9c8d4567",
             senderType: "user",
           },
+          content: prompt, // Direct content property
           message: {
             content: prompt,
             contentType: "text",
           },
-          chatId,
           isAIResponse: false,
-          userId: "641e23bc79b28a2f9c8d4567",
           isDeleted: false,
         };
+
         const body = {
           message,
           modelName: deepseekModel,
           options: { temperature: 1.3, maxToken: 500 },
         };
+
+        console.log("Stream request body:", JSON.stringify(body, null, 2));
 
         try {
           const response = await fetch(
@@ -83,6 +115,7 @@ export const chatApi = createApi({
               body: JSON.stringify(body),
             }
           );
+
           const reader = response.body?.getReader();
           if (!reader) throw new Error("No response body");
 
@@ -137,6 +170,7 @@ export const chatApi = createApi({
 
           return { data: undefined };
         } catch (error) {
+          console.error("API request failed:", error);
           return { error: { status: "CUSTOM_ERROR", error: String(error) } };
         }
       },

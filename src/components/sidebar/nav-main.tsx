@@ -1,8 +1,4 @@
-import {
-  BookOpen,
-  ChevronRight,
-  Video,
-} from "lucide-react";
+import { BookOpen, ChevronRight, Video } from "lucide-react";
 
 import {
   Collapsible,

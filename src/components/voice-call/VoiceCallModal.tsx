@@ -471,7 +471,7 @@ const VoiceCallModal: React.FC<VoiceCallModalProps> = ({ isOpen, onClose }) => {
             {isSpeaking &&
               "AI is speaking... You can click the Stop button to interrupt."}
           </div>
-    </div>
+        </div>
       </DialogContent>
     </Dialog>
   );

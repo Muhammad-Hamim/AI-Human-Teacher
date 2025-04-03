@@ -35,6 +35,25 @@ export default function VoiceRecognition({ poem }: VoiceRecognitionProps) {
 
   const recognitionRef = useRef<any>(null);
 
+  // Function to check if a character is Chinese
+  const isChineseChar = (char: string): boolean => {
+    const code = char.charCodeAt(0);
+    return (
+      (code >= 0x4e00 && code <= 0x9fff) || // CJK Unified Ideographs
+      (code >= 0x3400 && code <= 0x4dbf) || // CJK Unified Ideographs Extension A
+      (code >= 0xf900 && code <= 0xfaff) || // CJK Compatibility Ideographs
+      (code >= 0x3300 && code <= 0x33ff) || // CJK Compatibility
+      (code >= 0xfe30 && code <= 0xfe4f) || // CJK Compatibility Forms
+      (code >= 0xf900 && code <= 0xfaff) || // CJK Compatibility Ideographs
+      (code >= 0x2f800 && code <= 0x2fa1f) // CJK Compatibility Ideographs Supplement
+    );
+  };
+
+  // Function to filter out non-Chinese characters
+  const filterChineseOnly = (text: string): string => {
+    return text.split("").filter(isChineseChar).join("");
+  };
+
   // Initialize speech recognition
   useEffect(() => {
     if (
@@ -53,12 +72,30 @@ export default function VoiceRecognition({ poem }: VoiceRecognitionProps) {
     recognitionRef.current.continuous = true;
     recognitionRef.current.interimResults = true;
     recognitionRef.current.lang = "zh-CN";
+    recognitionRef.current.maxAlternatives = 1;
 
     recognitionRef.current.onresult = (event: any) => {
       const result = event.results[event.results.length - 1];
       const transcriptText = result[0].transcript;
-      setTranscript(transcriptText);
-      setCurrentTranscriptText(transcriptText);
+
+      // Filter to keep only Chinese characters
+      const chineseOnlyText = filterChineseOnly(transcriptText);
+
+      // Check if we got meaningful Chinese text
+      if (chineseOnlyText.length === 0 && transcriptText.trim().length > 0) {
+        console.warn(
+          "No Chinese characters detected in speech recognition result:",
+          transcriptText
+        );
+        // Show a warning but don't update the transcript
+        setFeedback(
+          "No Chinese characters detected. Please try speaking in Chinese."
+        );
+        return;
+      }
+
+      setTranscript(chineseOnlyText);
+      setCurrentTranscriptText(chineseOnlyText);
     };
 
     recognitionRef.current.onerror = (event: any) => {
@@ -93,9 +130,14 @@ export default function VoiceRecognition({ poem }: VoiceRecognitionProps) {
     setCurrentTranscriptText("");
     if (recognitionRef.current) {
       try {
+        // Always ensure language is set to Chinese before starting
+        recognitionRef.current.lang = "zh-CN";
         recognitionRef.current.start();
         setIsListening(true);
-        console.log("Started listening");
+        console.log(
+          "Started listening with language:",
+          recognitionRef.current.lang
+        );
       } catch (error) {
         console.error("Error starting speech recognition:", error);
         setFeedback(`Error starting speech recognition: ${error}`);
@@ -112,9 +154,10 @@ export default function VoiceRecognition({ poem }: VoiceRecognitionProps) {
 
         // Only evaluate if we should and have transcript text
         if (shouldEvaluate && currentTranscriptText) {
-          console.log("Evaluating transcript:", currentTranscriptText);
+          const chineseText = filterChineseOnly(currentTranscriptText);
+          console.log("Evaluating transcript (Chinese only):", chineseText);
           setTimeout(() => {
-            evaluateRecitation(currentTranscriptText);
+            evaluateRecitation(chineseText);
           }, 100); // Small delay to ensure recognition has fully stopped
         }
       } catch (error) {
@@ -126,7 +169,18 @@ export default function VoiceRecognition({ poem }: VoiceRecognitionProps) {
   // Toggle listening state
   const toggleListening = () => {
     if (isListening) {
-      stopListening(true); // Stop and evaluate
+      // If we're stopping, check if there are any Chinese characters in the transcript
+      if (
+        currentTranscriptText &&
+        filterChineseOnly(currentTranscriptText).length === 0
+      ) {
+        setFeedback(
+          "No Chinese characters detected. Please try speaking in Chinese."
+        );
+        stopListening(false); // Stop without evaluation
+      } else {
+        stopListening(true); // Stop and evaluate
+      }
     } else {
       startListening();
     }
@@ -134,6 +188,9 @@ export default function VoiceRecognition({ poem }: VoiceRecognitionProps) {
 
   // Evaluate recitation using compareText utility
   const evaluateRecitation = (transcriptText: string) => {
+    // Ensure we only have Chinese characters
+    const chineseText = filterChineseOnly(transcriptText);
+
     let targetChinese = "";
 
     // Ensure we have the current practice mode and selected line
@@ -141,7 +198,7 @@ export default function VoiceRecognition({ poem }: VoiceRecognitionProps) {
     const currentSelectedLine = selectedLine;
 
     console.log("practiceMode:", currentPracticeMode);
-    console.log("transcriptText:", transcriptText);
+    console.log("Chinese transcript:", chineseText);
 
     // Get target text based on practice mode
     if (currentPracticeMode === "line" && currentSelectedLine) {
@@ -166,7 +223,7 @@ export default function VoiceRecognition({ poem }: VoiceRecognitionProps) {
 
     // Use the compareText utility to compare user's speech with target text
     try {
-      const comparisonResult = compareText(targetChinese, transcriptText);
+      const comparisonResult = compareText(targetChinese, chineseText);
       console.log("Comparison result:", comparisonResult);
 
       // Set accuracy based on the comparison result
@@ -461,8 +518,8 @@ export default function VoiceRecognition({ poem }: VoiceRecognitionProps) {
                 ) : (
                   <p className="text-gray-400 italic">
                     {isListening
-                      ? "Listening... Speak now and click the mic button when done"
-                      : "Press the microphone button and speak"}
+                      ? "Listening... Speak now in Chinese and click the mic button when done"
+                      : "Press the microphone button and speak in Chinese"}
                   </p>
                 )}
                 {isListening && (
@@ -477,6 +534,13 @@ export default function VoiceRecognition({ poem }: VoiceRecognitionProps) {
                     </div>
                   </div>
                 )}
+                {feedback &&
+                  feedback.includes("No Chinese characters detected") && (
+                    <div className="mt-2 p-2 border border-yellow-600 rounded bg-yellow-800/30 text-yellow-200 text-sm">
+                      <AlertTriangle size={14} className="inline-block mr-1" />
+                      Only Chinese speech will be recognized
+                    </div>
+                  )}
               </div>
               {feedback && (
                 <div

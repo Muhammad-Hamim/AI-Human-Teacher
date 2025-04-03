@@ -18,7 +18,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const isCollapsed = state === "collapsed";
 
   return (
-    <Sidebar collapsible="icon" {...props} >
+    <Sidebar collapsible="icon" {...props}>
       <SidebarHeader className="border-b border-slate-700/30 pb-2">
         <div className="flex items-center justify-center gap-2 px-4 py-3">
           <GraduationCap className="h-8 w-8 text-indigo-400 shrink-0" />
