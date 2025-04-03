@@ -1,0 +1,107 @@
+
+> server_side@1.0.0 start:dev
+> ts-node-dev --respawn --transpile-only ./src/server.ts
+
+[INFO] 06:15:30 ts-node-dev ver. 2.0.0 (using ts-node ver. 10.9.2, typescript ver. 5.8.2)
+🔗 Database connection established
+Explicitly enabling poetry training
+Initializing AI Factory with poem database context...
+Environment variables: POETRY_TRAINING = true
+All collections in database:
+- messages
+- users
+- poems
+- chats
+Found potential poem collection: poems with 53 documents
+Sample document: {
+  "_id": "67dab764bca3c7c7ef8eccda",
+  "title": "静夜思",
+  "author": "李白",
+  "dynasty": "唐"
+}
+Found potential poem collection: chats with 19 documents
+Sample document: {
+  "_id": "67db68cf4eb013902e579398",
+  "title": "tell a chinese poem."
+}
+Searching for poem collections for context generation...
+Using collection 'poems' with 53 poems for context generation
+Poem database context generated:
+-----------------------------
+POEM DATABASE INFORMATION:
+
+Total poems: 53
+Dynasties represented: 4
+Authors represented: 17
+
+Sample poems in database:
+- "静夜思" by 李白 (唐)
+- "黄鹤楼送孟浩然之广陵" by 李白 (唐)
+- "赠汪伦" by 李白 (唐)
+- "送杜少府之任蜀州" by 王勃 (唐)
+- "九月九日忆山东兄弟" by 王维 (唐)
+- "离骚" by 屈原 (战国)
+- "夜雨寄北" by 李商隐 (唐)
+- "登岳阳楼" by 杜甫 (唐)
+- "凉州词" by 王之涣 (唐)
+- "江雪" by 柳宗元 (唐)
+
+-----------------------------
+AI Factory initialized successfully with poem database context
+🚀 Server running on port 5000
+📢 Server accessible at: http://localhost:5000
+Server base URL set to: http://localhost:5000
+Server base URL set to: http://localhost:5000
+Server base URL set to: http://localhost:5000
+AI services initialized
+Loaded 0 TTS voices
+🎙️ Generating TTS for test...
+📜 Detected Chinese poem format:
+- Has line breaks: true
+- Has Chinese punctuation: true
+- Has short lines: true
+- Has balanced line length: true
+- Sample of poem: 静夜思
+床前明月光，
+疑是地上霜。
+举头望明月，
+低头思故乡。
+📝 Applying special poem formatting
+🎙️ Formatted poem for TTS: 静夜思。。床前明月光，。疑是地上霜。。举头望明月，。低头思故乡。
+✅ TTS generation successful: /dist/tts-test-1743200296495.wav
+🎙️ Generating TTS for test...
+📜 Detected Chinese poem format:
+- Has line breaks: true
+- Has Chinese punctuation: true
+- Has short lines: true
+- Has balanced line length: true
+- Sample of poem: 静夜思
+床前明月光，
+疑是地上霜。
+举头望明月，
+低头思故乡。
+📝 Applying special poem formatting
+🎙️ Formatted poem for TTS: 静夜思。。床前明月光，。疑是地上霜。。举头望明月，。低头思故乡。
+✅ TTS generation successful: /dist/tts-test-1743200353449.wav
+🔍 message {
+  message: {
+    user: { senderId: '641e23bc79b28a2f9c8d4567', senderType: 'user' },
+    message: { content: 'tell me a modern chinese poem', contentType: 'text' },
+    chatId: '67e5473309c378caddbd141f',
+    isAIResponse: false,
+    userId: '641e23bc79b28a2f9c8d4567',
+    isDeleted: false
+  },
+  modelName: 'deepseek/deepseek-r1:free',
+  options: { temperature: 1, maxToken: 2000 }
+}
+Using default Poem model
+Adding poem database context to conversation:
+Context length: 322
+Checking if message is poem-related: "tell me a modern chinese poem"
+Is poem query: true
+Processing random poem request
+Retrieved random poem: "琵琶行" by 白居易
+Adding specific poem context based on query:
+Query: tell me a modern chinese poem
+Context length: 2091
