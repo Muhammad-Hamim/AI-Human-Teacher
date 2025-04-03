@@ -1,0 +1,638 @@
+implement webRTC to make a voice call with ai to my backend. here is the procedure. update my voice chat in this way. 
+# Guide to Connecting the WebRTC Voice Feature with React/Redux Frontend
+
+Here's how to integrate the WebRTC voice feature with your React/TypeScript and Redux frontend:
+
+## Step 1: Install Required Packages
+
+```bash
+npm install socket.io-client @reduxjs/toolkit
+```
+
+## Step 2: Create Voice API Slice
+
+Create a new file `src/redux/features/voice/voiceApi.ts`:
+
+```typescript
+import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
+import { TMessage } from '@/types/messages/TMessages';
+import { Socket, io } from 'socket.io-client';
+
+// Define voice-related types
+interface VoiceStatus {
+  webrtc: boolean;
+  speechRecognition: boolean;
+  speechSynthesis: boolean;
+}
+
+interface VoiceInfo {
+  id: string;
+  name: string;
+  gender: string;
+  lang: string;
+}
+
+interface VoiceSession {
+  sessionId: string;
+  socket: Socket | null;
+  active: boolean;
+  transcript: string;
+  response: string;
+}
+
+// Create the voice API slice
+export const voiceApi = createApi({
+  reducerPath: 'voiceApi',
+  baseQuery: fetchBaseQuery({
+    baseUrl: process.env.VITE_API_URL || 'http://localhost:5000/api/v1/',
+  }),
+  tagTypes: ['Voice'],
+  endpoints: (builder) => ({
+    // Get voice service status
+    getVoiceStatus: builder.query<VoiceStatus, void>({
+      query: () => '/ai/voice/status',
+      transformResponse: (response: any) => response.data,
+    }),
+
+    // Get available voices
+    getAvailableVoices: builder.query<VoiceInfo[], void>({
+      query: () => '/ai/voice/available-voices',
+      transformResponse: (response: any) => response.data,
+    }),
+
+    // Process voice transcript (HTTP fallback)
+    processVoiceTranscript: builder.mutation<
+      { messageId: string; text: string },
+      { transcript: string; chatId: string; userId?: string; modelName?: string }
+    >({
+      query: (body) => ({
+        url: '/ai/voice/process-transcript',
+        method: 'POST',
+        body,
+      }),
+      transformResponse: (response: any) => response.data,
+      invalidatesTags: (result, error, { chatId }) => [
+        { type: 'Messages', id: chatId },
+      ],
+    }),
+  }),
+});
+
+// Create WebRTC voice session hook (custom RTK hook)
+export const useWebRTCVoice = () => {
+  // Create and manage WebRTC logic using hooks
+  const startVoiceSession = async (
+    userId: string,
+    chatId: string,
+    onTranscript: (transcript: string) => void,
+    onResponse: (response: { messageId: string; text: string }) => void
+  ): Promise<VoiceSession> => {
+    // Connect to Socket.io server
+    const socket = io(process.env.VITE_API_URL || 'http://localhost:5000');
+    
+    // Return promise that resolves when session is established
+    return new Promise((resolve, reject) => {
+      socket.on('connect', () => {
+        // Start voice session when socket connects
+        socket.emit('start-voice-session', { userId, chatId });
+        
+        // Handle session started event
+        socket.on('voice-session-started', (data) => {
+          const session: VoiceSession = {
+            sessionId: data.sessionId,
+            socket,
+            active: true,
+            transcript: '',
+            response: '',
+          };
+          resolve(session);
+        });
+        
+        // Handle voice response event
+        socket.on('voice-response', (data) => {
+          onResponse(data);
+        });
+        
+        // Handle error event
+        socket.on('error', (error) => {
+          reject(error);
+        });
+      });
+      
+      // Handle connection error
+      socket.on('connect_error', (error) => {
+        reject(error);
+      });
+    });
+  };
+  
+  // Send voice transcript
+  const sendVoiceTranscript = (
+    session: VoiceSession, 
+    transcript: string
+  ): void => {
+    if (session.socket && session.active) {
+      session.socket.emit('voice-message', {
+        sessionId: session.sessionId,
+        transcript,
+      });
+    }
+  };
+  
+  // End voice session
+  const endVoiceSession = (session: VoiceSession): void => {
+    if (session.socket) {
+      session.socket.emit('end-voice-session', {
+        sessionId: session.sessionId,
+      });
+      session.socket.disconnect();
+    }
+  };
+  
+  return {
+    startVoiceSession,
+    sendVoiceTranscript,
+    endVoiceSession,
+  };
+};
+
+// Export hooks
+export const {
+  useGetVoiceStatusQuery,
+  useGetAvailableVoicesQuery,
+  useProcessVoiceTranscriptMutation,
+} = voiceApi;
+```
+
+## Step 3: Add Voice Slice to Redux Store
+
+Update your `src/redux/store.ts`:
+
+```typescript
+import { configureStore } from '@reduxjs/toolkit';
+import { chatApi } from './features/chat/chatApi';
+import { chatHistoryApi } from './features/chatHistory/chatHistoryApi';
+import { voiceApi } from './features/voice/voiceApi';
+
+export const store = configureStore({
+  reducer: {
+    [chatApi.reducerPath]: chatApi.reducer,
+    [chatHistoryApi.reducerPath]: chatHistoryApi.reducer,
+    [voiceApi.reducerPath]: voiceApi.reducer,
+  },
+  middleware: (getDefaultMiddleware) =>
+    getDefaultMiddleware().concat(
+      chatApi.middleware,
+      chatHistoryApi.middleware,
+      voiceApi.middleware
+    ),
+});
+
+export type RootState = ReturnType<typeof store.getState>;
+export type AppDispatch = typeof store.dispatch;
+```
+
+## Step 4: Create a Voice Call Hook
+
+Create a new custom hook `src/hooks/useVoiceCall.ts`:
+
+```typescript
+import { useState, useEffect, useRef } from 'react';
+import { useWebRTCVoice } from '@/redux/features/voice/voiceApi';
+import { toast } from 'sonner';
+import { FUserId } from '@/types/chat/TChatHistory';
+
+// Types for our hook
+interface UseVoiceCallProps {
+  chatId: string | undefined;
+}
+
+interface VoiceSession {
+  sessionId: string;
+  active: boolean;
+}
+
+export default function useVoiceCall({ chatId }: UseVoiceCallProps) {
+  const [isVoiceCallOpen, setIsVoiceCallOpen] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
+  const [session, setSession] = useState<VoiceSession | null>(null);
+  const [transcript, setTranscript] = useState('');
+  const [aiResponse, setAiResponse] = useState('');
+  const [isMuted, setIsMuted] = useState(false);
+  
+  // Get WebRTC functions
+  const { startVoiceSession, sendVoiceTranscript, endVoiceSession } = useWebRTCVoice();
+  
+  // Speech recognition ref
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  
+  // Open voice call modal
+  const openVoiceCall = () => {
+    if (!chatId) {
+      toast.error('Please start a chat first');
+      return;
+    }
+    setIsVoiceCallOpen(true);
+  };
+  
+  // Close voice call modal
+  const closeVoiceCall = () => {
+    if (session) {
+      endSession();
+    }
+    setIsVoiceCallOpen(false);
+  };
+  
+  // Start voice session
+  const startSession = async () => {
+    if (!chatId) {
+      toast.error('Please start a chat first');
+      return;
+    }
+    
+    setIsConnecting(true);
+    
+    try {
+      // Start WebRTC session
+      const newSession = await startVoiceSession(
+        FUserId, 
+        chatId,
+        // Transcript callback
+        (text) => setTranscript(text),
+        // Response callback
+        (response) => {
+          setAiResponse(response.text);
+          speakResponse(response.text);
+        }
+      );
+      
+      setSession({
+        sessionId: newSession.sessionId,
+        active: true,
+      });
+      
+      setIsConnected(true);
+      
+      // Start speech recognition
+      startSpeechRecognition();
+      
+    } catch (error) {
+      console.error('Error starting voice session:', error);
+      toast.error('Failed to start voice session');
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+  
+  // End voice session
+  const endSession = () => {
+    if (session) {
+      endVoiceSession(session as any);
+      setSession(null);
+    }
+    
+    // Stop speech recognition
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+      recognitionRef.current = null;
+    }
+    
+    // Cancel any ongoing speech synthesis
+    if (window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
+    
+    setIsConnected(false);
+    setTranscript('');
+    setAiResponse('');
+  };
+  
+  // Toggle mute
+  const toggleMute = () => {
+    setIsMuted(!isMuted);
+    
+    if (recognitionRef.current) {
+      if (isMuted) {
+        recognitionRef.current.start();
+      } else {
+        recognitionRef.current.stop();
+      }
+    }
+  };
+  
+  // Start speech recognition
+  const startSpeechRecognition = () => {
+    if (!('webkitSpeechRecognition' in window)) {
+      toast.error('Speech recognition is not supported in your browser');
+      return;
+    }
+    
+    const SpeechRecognition = window.webkitSpeechRecognition || window.SpeechRecognition;
+    recognitionRef.current = new SpeechRecognition();
+    recognitionRef.current.continuous = true;
+    recognitionRef.current.interimResults = true;
+    recognitionRef.current.lang = 'en-US';
+    
+    recognitionRef.current.onresult = (event) => {
+      let interimTranscript = '';
+      let finalTranscript = '';
+      
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          finalTranscript += event.results[i][0].transcript;
+        } else {
+          interimTranscript += event.results[i][0].transcript;
+        }
+      }
+      
+      // Update UI with transcript
+      setTranscript(finalTranscript || interimTranscript);
+      
+      // Send final transcript to server
+      if (finalTranscript && session) {
+        sendVoiceTranscript(session as any, finalTranscript);
+        setTranscript('');
+      }
+    };
+    
+    recognitionRef.current.onerror = (event) => {
+      console.error('Speech recognition error', event.error);
+    };
+    
+    recognitionRef.current.onend = () => {
+      if (isConnected && !isMuted && recognitionRef.current) {
+        // Restart recognition if it ends and we're still connected
+        setTimeout(() => {
+          try {
+            recognitionRef.current?.start();
+          } catch (e) {
+            console.error('Error restarting speech recognition:', e);
+          }
+        }, 1000);
+      }
+    };
+    
+    // Start recognition
+    recognitionRef.current.start();
+  };
+  
+  // Speak AI response
+  const speakResponse = (text: string) => {
+    if (!('speechSynthesis' in window)) {
+      toast.error('Text-to-speech is not supported in your browser');
+      return;
+    }
+    
+    // Stop any existing speech
+    window.speechSynthesis.cancel();
+    
+    const utterance = new SpeechSynthesisUtterance(text);
+    
+    // Select a voice (optional)
+    const voices = window.speechSynthesis.getVoices();
+    if (voices.length > 0) {
+      utterance.voice = voices.find(voice => voice.name.includes('Female')) || voices[0];
+    }
+    
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
+    
+    // Pause speech recognition while AI is speaking
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+    }
+    
+    // Resume speech recognition after AI finishes speaking
+    utterance.onend = () => {
+      if (isConnected && !isMuted && recognitionRef.current) {
+        recognitionRef.current.start();
+      }
+    };
+    
+    window.speechSynthesis.speak(utterance);
+  };
+  
+  // Clean up on unmount
+  useEffect(() => {
+    return () => {
+      if (session) {
+        endSession();
+      }
+    };
+  }, []);
+  
+  return {
+    isVoiceCallOpen,
+    openVoiceCall,
+    closeVoiceCall,
+    isConnecting,
+    isConnected,
+    startSession,
+    endSession,
+    toggleMute,
+    isMuted,
+    transcript,
+    aiResponse,
+  };
+}
+```
+
+## Step 5: Create a Better Voice Call Modal Component
+
+Update your `VoiceCallModal.tsx`:
+
+```tsx
+import React from 'react';
+import { X, Mic, MicOff, Phone } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { useParams } from 'react-router-dom';
+import useVoiceCall from '@/hooks/useVoiceCall';
+
+interface VoiceCallModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+const VoiceCallModal: React.FC<VoiceCallModalProps> = ({ isOpen, onClose }) => {
+  const { chatId } = useParams<{ chatId: string }>();
+  
+  const {
+    isConnecting,
+    isConnected,
+    startSession,
+    endSession,
+    toggleMute,
+    isMuted,
+    transcript,
+    aiResponse,
+  } = useVoiceCall({ chatId });
+  
+  // Handle close
+  const handleClose = () => {
+    endSession();
+    onClose();
+  };
+  
+  return (
+    <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
+      <DialogContent className="sm:max-w-md bg-gray-900 border-gray-800">
+        <DialogHeader>
+          <DialogTitle className="text-xl font-bold">AI Voice Conversation</DialogTitle>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute right-4 top-4 text-gray-400 hover:text-white"
+            onClick={handleClose}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </DialogHeader>
+        
+        <div className="p-6 space-y-6">
+          <div className="bg-gray-800 p-4 rounded-lg min-h-[120px] max-h-[160px] overflow-y-auto">
+            {transcript ? (
+              <p className="text-gray-300">You: {transcript}</p>
+            ) : isConnected ? (
+              <p className="text-gray-500 italic">Listening...</p>
+            ) : (
+              <p className="text-gray-500 italic">Click "Start Call" to begin the voice conversation</p>
+            )}
+            
+            {aiResponse && (
+              <p className="text-indigo-400 mt-2">AI: {aiResponse}</p>
+            )}
+          </div>
+          
+          <div className="flex justify-center space-x-4">
+            {!isConnected ? (
+              <Button
+                variant="default"
+                size="lg"
+                className="bg-indigo-600 hover:bg-indigo-700"
+                onClick={startSession}
+                disabled={isConnecting || !chatId}
+              >
+                {isConnecting ? "Connecting..." : "Start Call"}
+              </Button>
+            ) : (
+              <>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className={`rounded-full h-12 w-12 ${isMuted ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-800 hover:bg-gray-700'}`}
+                  onClick={toggleMute}
+                >
+                  {isMuted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="icon"
+                  className="rounded-full h-12 w-12 bg-red-600 hover:bg-red-700"
+                  onClick={endSession}
+                >
+                  <Phone className="h-5 w-5" />
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+export default VoiceCallModal;
+```
+
+## Step 6: Update AskAi Component
+
+Update your `AskAi.tsx` to use the voice call hook:
+
+```tsx
+// ... existing imports
+import { toast } from 'sonner';
+import useVoiceCall from '@/hooks/useVoiceCall';
+
+const AskAi = () => {
+  // ... existing code
+  
+  // Voice call hook
+  const { isVoiceCallOpen, openVoiceCall, closeVoiceCall } = useVoiceCall({ chatId });
+  
+  // ... existing code
+  
+  const handleVoiceCallClick = () => {
+    if (!chatId) {
+      toast.error('Please start a chat first');
+      return;
+    }
+    openVoiceCall();
+  };
+  
+  return (
+    <>
+      <main className="flex overflow-hidden flex-col h-[calc(100vh-100px)] w-[70%] mx-auto bg-gray-900 rounded-xl border border-gray-800">
+        {/* ... existing code */}
+        
+        <Card className="border border-gray-800 mx-6 my-4 p-3 bg-gray-800/70 backdrop-blur-sm shadow-lg rounded-xl">
+          {/* ... existing code */}
+          
+          <div className="flex items-center justify-between mt-3 px-1">
+            {/* ... existing code */}
+            
+            <div className="flex items-center gap-2">
+              {/* ... existing code */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 rounded-full hover:bg-gray-700 text-gray-300"
+                    onClick={handleVoiceCallClick}
+                    disabled={isThinking}
+                  >
+                    <Mic className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Voice conversation</TooltipContent>
+              </Tooltip>
+            </div>
+          </div>
+        </Card>
+      </main>
+
+      {/* Voice Call Modal */}
+      <VoiceCallModal isOpen={isVoiceCallOpen} onClose={closeVoiceCall} />
+    </>
+  );
+};
+
+export default AskAi;
+```
+
+## Step 7: Testing and Debugging
+
+To debug WebRTC voice functionality:
+
+1. Check browser console for connection issues
+2. Verify that your backend is properly configured with Socket.io
+3. Test microphone permissions in browser
+4. Confirm that the WebRTC STUN servers are accessible
+5. Verify that the speech recognition and synthesis APIs are working
+
+## Additional Tips
+
+1. **Add fallback mechanism**: If WebRTC fails, provide a button to switch to HTTP-based voice processing
+
+2. **Browser compatibility**: Add browser compatibility warnings for browsers that don't support WebRTC or Speech APIs
+
+3. **Visual feedback**: Add animations for voice activity to give users feedback about when the AI is listening
+
+4. **Error handling**: Implement comprehensive error handling with user-friendly messages
+
+5. **Voice options**: Add a settings panel to choose different voice types for AI responses
+
+This comprehensive implementation should give you a fully functional WebRTC voice conversation feature integrated with your React/Redux application!
