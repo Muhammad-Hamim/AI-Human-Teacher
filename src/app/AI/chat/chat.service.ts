@@ -24,7 +24,10 @@ const DEFAULT_OPTIONS = {
 const processMessage = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
     const { message } = req.body;
-    console.log("Received message structure:", req.body);
+    console.log(
+      "Received message structure:",
+      req.body
+    );
 
     // Enhanced validation logic to handle different message structures
     if (!message || !message.chatId) {
