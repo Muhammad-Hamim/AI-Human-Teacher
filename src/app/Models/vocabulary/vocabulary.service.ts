@@ -67,10 +67,7 @@ const generateVocabularyExplanation = async (
   word: string
 ): Promise<TVocabulary> => {
   try {
-    const ai = AIFactory.createCustomAI(
-      "deepseek",
-      "deepseek/deepseek-r1:free"
-    );
+    const ai = AIFactory.createAI();
 
     const systemPrompt = `
 You are an expert Chinese language teacher specializing in vocabulary explanations. 

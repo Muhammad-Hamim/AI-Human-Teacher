@@ -33,10 +33,7 @@ const generatePoemNarration = catchAsync(
       }
 
       // 2. Create AI instance for narration generation
-      const ai = AIFactory.createCustomAI(
-        "deepseek",
-        "deepseek/deepseek-r1:free"
-      );
+      const ai = AIFactory.createAI();
 
       // Format the poem content
       const poemContent = poem.lines.map((line) => line.chinese).join("\n");

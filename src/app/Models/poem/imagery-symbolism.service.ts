@@ -40,10 +40,7 @@ const generateImagerySymbolismWithAI = async (
   poem: TPoem
 ): Promise<TImagerySymbolism> => {
   try {
-    const ai = AIFactory.createCustomAI(
-      "deepseek",
-      "deepseek/deepseek-r1:free"
-    );
+    const ai = AIFactory.createAI();
 
     // Create combined poem text for context
     const poemText = poem.lines.map((line) => line.chinese).join("\n");
