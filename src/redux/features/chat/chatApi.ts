@@ -1,5 +1,4 @@
 import { TMessage } from "@/types/messages/TMessages";
-import { deepseekModel } from "@/utils/aiModelNameConst";
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 
 export const chatApi = createApi({
