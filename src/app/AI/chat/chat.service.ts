@@ -17,6 +17,7 @@ const processMessage = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
     const { message, modelName, options } = req.body;
     const sendAudioData = options?.sendAudioData === true;
+<<<<<<< HEAD
     console.log(
       "Received message structure:",
       JSON.stringify(message, null, 2)
@@ -42,13 +43,23 @@ const processMessage = catchAsync(
           new AppError(httpStatus.BAD_REQUEST, "Missing message content")
         );
       }
+=======
+    console.log("🔍 message", req.body);
+    // Validate request data
+    if (!message || !message.chatId || !message.message?.content) {
+      return next(new AppError(httpStatus.BAD_REQUEST, "Invalid request data"));
+>>>>>>> 5d346501064e48b47dd7da9cea64176bd413d6d9
     }
 
     try {
       // Determine AI model type and create instance
       const useOpenAI = modelName?.includes("gpt");
       const useQwen = modelName?.includes("qwen");
+<<<<<<< HEAD
       let aiType = "deepseek"; // Default to deepseek
+=======
+      let aiType = "qwen2"; // Default to qwen2
+>>>>>>> 5d346501064e48b47dd7da9cea64176bd413d6d9
 
       if (useOpenAI) {
         aiType = "openai";
@@ -68,7 +79,11 @@ const processMessage = catchAsync(
       const aiResponse = await ai.processMessage(
         message as Omit<TMessage, "_id">
       );
+<<<<<<< HEAD
       console.log("🔍 aiResponse", aiResponse);
+=======
+
+>>>>>>> 5d346501064e48b47dd7da9cea64176bd413d6d9
       // Generate TTS for the AI response
       const responseText = aiResponse.message.content;
       const voiceId = options?.voiceId || "zh-CN-XiaoxiaoNeural";
@@ -209,6 +224,7 @@ const streamMessage = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
     const { message, modelName, options } = req.body;
 
+<<<<<<< HEAD
     // Apply the same enhanced validation logic as processMessage
     console.log(
       "Received stream message structure:",
@@ -235,6 +251,11 @@ const streamMessage = catchAsync(
           new AppError(httpStatus.BAD_REQUEST, "Missing message content")
         );
       }
+=======
+    // Validate request data before setting streaming headers
+    if (!message || !message.chatId || !message.message?.content) {
+      return next(new AppError(httpStatus.BAD_REQUEST, "Invalid request data"));
+>>>>>>> 5d346501064e48b47dd7da9cea64176bd413d6d9
     }
 
     // Set headers for SSE (Server-Sent Events)
