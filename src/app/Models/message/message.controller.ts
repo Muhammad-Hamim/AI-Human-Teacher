@@ -6,10 +6,6 @@ import { MessageService } from "./message.service";
 
 // Create a new message
 const createMessage = catchAsync(async (req: Request, res: Response) => {
-<<<<<<< HEAD
-  
-=======
->>>>>>> 5d346501064e48b47dd7da9cea64176bd413d6d9
   const result = await MessageService.createMessage(req.body);
 
   sendResponse(res, {

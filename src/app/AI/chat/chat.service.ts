@@ -10,18 +10,21 @@ import SpeechService from "../services/speech.service";
 // File size threshold for streaming (in bytes) - 1MB
 const STREAM_THRESHOLD = 1024 * 1024;
 
+// Default AI and TTS options
+const DEFAULT_OPTIONS = {
+  maxTokens: 4000, // increased maxTokens from 1000
+  temperature: 0.7,
+  voiceId: "zh-CN-XiaoxiaoNeural",
+  sendAudioData: true,
+};
+
 /**
  * Process a message from the frontend and generate AI response
  */
 const processMessage = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
-    const { message, modelName, options } = req.body;
-    const sendAudioData = options?.sendAudioData === true;
-<<<<<<< HEAD
-    console.log(
-      "Received message structure:",
-      JSON.stringify(message, null, 2)
-    );
+    const { message } = req.body;
+    console.log("Received message structure:", req.body);
 
     // Enhanced validation logic to handle different message structures
     if (!message || !message.chatId) {
@@ -43,50 +46,19 @@ const processMessage = catchAsync(
           new AppError(httpStatus.BAD_REQUEST, "Missing message content")
         );
       }
-=======
-    console.log("🔍 message", req.body);
-    // Validate request data
-    if (!message || !message.chatId || !message.message?.content) {
-      return next(new AppError(httpStatus.BAD_REQUEST, "Invalid request data"));
->>>>>>> 5d346501064e48b47dd7da9cea64176bd413d6d9
     }
 
     try {
-      // Determine AI model type and create instance
-      const useOpenAI = modelName?.includes("gpt");
-      const useQwen = modelName?.includes("qwen");
-<<<<<<< HEAD
-      let aiType = "deepseek"; // Default to deepseek
-=======
-      let aiType = "qwen2"; // Default to qwen2
->>>>>>> 5d346501064e48b47dd7da9cea64176bd413d6d9
-
-      if (useOpenAI) {
-        aiType = "openai";
-      } else if (modelName?.includes("deepseek")) {
-        aiType = "deepseek";
-      }
-
-      // Create AI with specified model or default
-      const ai = modelName
-        ? AIFactory.createCustomAI(
-            aiType as "openai" | "deepseek" | "qwen2",
-            modelName
-          )
-        : AIFactory.createAI();
+      // Create AI instance
+      const ai = AIFactory.createAI();
 
       // Process the message and get AI response
       const aiResponse = await ai.processMessage(
         message as Omit<TMessage, "_id">
       );
-<<<<<<< HEAD
       console.log("🔍 aiResponse", aiResponse);
-=======
-
->>>>>>> 5d346501064e48b47dd7da9cea64176bd413d6d9
       // Generate TTS for the AI response
       const responseText = aiResponse.message.content;
-      const voiceId = options?.voiceId || "zh-CN-XiaoxiaoNeural";
       const outputFileName = `tts-${aiResponse._id}.wav`;
 
       try {
@@ -97,7 +69,7 @@ const processMessage = catchAsync(
         console.log("🎙️ Generating TTS for AI response...");
         const { audioUrl, audioData } = await SpeechService.speak({
           text: responseText,
-          voiceId,
+          voiceId: DEFAULT_OPTIONS.voiceId,
           outputFileName,
           baseUrl: serverBaseUrl,
         });
@@ -113,7 +85,7 @@ const processMessage = catchAsync(
             : aiResponse),
           audio: {
             url: audioUrl,
-            voiceId,
+            voiceId: DEFAULT_OPTIONS.voiceId,
             data: audioData,
             fileSize: await SpeechService.getAudioFileSize(audioUrl),
             contentType: "audio/wav",
@@ -121,7 +93,7 @@ const processMessage = catchAsync(
         };
 
         // If direct audio data is requested
-        if (sendAudioData) {
+        if (DEFAULT_OPTIONS.sendAudioData) {
           try {
             if (fileSize > STREAM_THRESHOLD) {
               // For large files, use streaming response
@@ -222,9 +194,8 @@ const processMessage = catchAsync(
  */
 const streamMessage = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
-    const { message, modelName, options } = req.body;
+    const { message } = req.body;
 
-<<<<<<< HEAD
     // Apply the same enhanced validation logic as processMessage
     console.log(
       "Received stream message structure:",
@@ -251,11 +222,6 @@ const streamMessage = catchAsync(
           new AppError(httpStatus.BAD_REQUEST, "Missing message content")
         );
       }
-=======
-    // Validate request data before setting streaming headers
-    if (!message || !message.chatId || !message.message?.content) {
-      return next(new AppError(httpStatus.BAD_REQUEST, "Invalid request data"));
->>>>>>> 5d346501064e48b47dd7da9cea64176bd413d6d9
     }
 
     // Set headers for SSE (Server-Sent Events)
@@ -264,30 +230,8 @@ const streamMessage = catchAsync(
     res.setHeader("Connection", "keep-alive");
 
     try {
-      // Fix the model name format for deepseek
-      let modelToUse = modelName;
-      if (modelName === "deepseek-r1") {
-        modelToUse = "deepseek/deepseek-r1:free";
-      }
-
-      // Determine AI model type and create instance
-      const useOpenAI = modelToUse?.includes("gpt");
-      const useQwen = modelToUse?.includes("qwen");
-      let aiType = "qwen2"; // Default to qwen2
-
-      if (useOpenAI) {
-        aiType = "openai";
-      } else if (modelToUse?.includes("deepseek")) {
-        aiType = "deepseek";
-      }
-
-      // Create AI with specified model or default
-      const ai = modelToUse
-        ? AIFactory.createCustomAI(
-            aiType as "openai" | "deepseek" | "qwen2",
-            modelToUse
-          )
-        : AIFactory.createAI();
+      // Create AI instance
+      const ai = AIFactory.createAI();
 
       // Initialize stream processing
       const messageStream = ai.processMessageStream(
@@ -322,7 +266,6 @@ const streamMessage = catchAsync(
 
       // Generate TTS after streaming is complete
       if (messageId && completeContent) {
-        const voiceId = options?.voiceId || "zh-CN-XiaoxiaoNeural";
         const outputFileName = `tts-${messageId}.wav`;
 
         // Get the server base URL for audio references
@@ -332,7 +275,7 @@ const streamMessage = catchAsync(
           // Generate TTS asynchronously
           const { audioUrl, audioData } = await SpeechService.speak({
             text: completeContent,
-            voiceId,
+            voiceId: DEFAULT_OPTIONS.voiceId,
             outputFileName,
             baseUrl: serverBaseUrl,
           });
@@ -346,7 +289,7 @@ const streamMessage = catchAsync(
               type: "audio",
               messageId,
               audioUrl,
-              voiceId,
+              voiceId: DEFAULT_OPTIONS.voiceId,
               fileSize,
               contentType: "audio/wav",
               data: audioData, // Always include audio data
@@ -461,35 +404,11 @@ const streamAudioFile = catchAsync(
 async function generateAIResponse(
   prompt: string,
   chatId: string,
-  userId: string,
-  modelName?: string,
-  options?: { voiceId?: string }
+  userId: string
 ): Promise<TMessage> {
   try {
-    // Fix the model name format for deepseek
-    let modelToUse = modelName;
-    if (modelName === "deepseek-r1") {
-      modelToUse = "deepseek/deepseek-r1:free";
-    }
-
-    // Determine AI model type
-    const useOpenAI = modelToUse?.includes("gpt");
-    const useQwen = modelToUse?.includes("qwen");
-    let aiType = "qwen2"; // Default to qwen2
-
-    if (useOpenAI) {
-      aiType = "openai";
-    } else if (modelToUse?.includes("deepseek")) {
-      aiType = "deepseek";
-    }
-
-    // Create AI with specified model or default
-    const ai = modelToUse
-      ? AIFactory.createCustomAI(
-          aiType as "openai" | "deepseek" | "qwen2",
-          modelToUse
-        )
-      : AIFactory.createAI();
+    // Create AI instance
+    const ai = AIFactory.createAI();
 
     // Create message data object
     const messageData: Omit<TMessage, "_id"> = {
@@ -512,13 +431,12 @@ async function generateAIResponse(
 
     // Generate TTS for the response
     try {
-      const voiceId = options?.voiceId || "zh-CN-XiaoxiaoNeural";
       const outputFileName = `tts-${response._id}.wav`;
 
       // Generate TTS and attach to response
       const audioResult = await SpeechService.speak({
         text: response.message.content,
-        voiceId,
+        voiceId: DEFAULT_OPTIONS.voiceId,
         outputFileName,
       });
 
@@ -537,7 +455,7 @@ async function generateAIResponse(
           'audio': {
             url: audioResult.audioUrl,
             data: audioResult.audioData,
-            voiceId: voiceId,
+            voiceId: DEFAULT_OPTIONS.voiceId,
             contentType: 'audio/wav'
           }
         }

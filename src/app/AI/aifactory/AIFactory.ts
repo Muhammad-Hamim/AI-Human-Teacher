@@ -7,6 +7,7 @@ import {
   generatePoemDatabaseContext,
   getAllPoemSummaries,
 } from "../../utils/poemTraining";
+import ServerConfig from "../../config/server.config";
 
 // Type definitions for messages
 export type TUser = {
@@ -723,16 +724,15 @@ abstract class BaseAIModel implements IAIModel {
     messages: AIMessage[],
     options: AIModelOptions = {}
   ): Promise<string> {
-    const { maxTokens = 500, temperature = 0.7, ...rest } = options;
-
+    // Changed default maxTokens from 2000 to 4000 to allow longer responses
+    const { maxTokens = 4000, temperature = 0.7, ...rest } = options;
     const response = await this.client.chat.completions.create({
       model: this.model,
       messages,
       max_tokens: maxTokens,
       temperature,
-      ...rest,
+      ...rest, // ensure no stop parameter is inadvertently provided
     });
-
     return response.choices[0]?.message?.content || "";
   }
 
@@ -741,15 +741,15 @@ abstract class BaseAIModel implements IAIModel {
     messages: AIMessage[],
     options: AIModelOptions = {}
   ): AsyncGenerator<string, void, unknown> {
-    const { maxTokens = 500, temperature = 0.7, ...rest } = options;
-
+    // Changed default maxTokens from 2000 to 4000 to support longer streams
+    const { maxTokens = 4000, temperature = 0.7, ...rest } = options;
     const stream = (await this.client.chat.completions.create({
       model: this.model,
       messages,
       max_tokens: maxTokens,
       temperature,
       stream: true,
-      ...rest,
+      ...rest, // ensure no stop sequence is set
     })) as unknown as AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>;
 
     for await (const chunk of stream) {
@@ -877,34 +877,18 @@ abstract class BaseAIModel implements IAIModel {
   }
 }
 
-// OpenAI model implementation
-class OpenAIModel extends BaseAIModel {
-  constructor(apiKey: string, model: string = "gpt-3.5-turbo") {
-    super(apiKey, model);
-  }
-}
-
-// DeepSeek model implementation
+// Keep only DeepSeek model implementation
 class DeepseekModel extends BaseAIModel {
-  constructor(apiKey: string, model: string = "deepseek/deepseek-r1:free") {
-    super(apiKey, model, config.ai_base_url);
+  constructor() {
+    super(
+      config.ai_api_key as string,
+      "deepseek/deepseek-r1:free",
+      config.ai_base_url
+    );
   }
 }
 
-// Qwen2 model implementation
-class Qwen2Model extends BaseAIModel {
-  constructor(
-    apiKey: string,
-    model: string = "qwen/qwen2.5-vl-72b-instruct:free"
-  ) {
-    super(apiKey, model, config.ai_base_url);
-  }
-}
-
-// AI model types
-type AIModelType = "openai" | "deepseek" | "qwen2";
-
-// AI Factory class
+// Simplify AI Factory class
 export class AIFactory {
   // Store poem database context for reuse
   private static poemDatabaseContext: string | null = null;
@@ -1002,30 +986,8 @@ export class AIFactory {
     return this.poemDatabaseContext || "";
   }
 
-  static createAI(type: AIModelType = "qwen2"): IAIModel {
-    // Get the appropriate API key and model based on the type
-    switch (type) {
-      case "openai":
-        return new OpenAIModel(config.ai_api_key as string);
-      case "deepseek":
-        return new DeepseekModel(config.ai_api_key as string);
-      case "qwen2":
-      default:
-        return new Qwen2Model(config.qwen2_api_key as string);
-    }
-  }
-
-  static createCustomAI(type: AIModelType, model: string): IAIModel {
-    // Get the appropriate API key and model based on the type
-    switch (type) {
-      case "openai":
-        return new OpenAIModel(config.ai_api_key as string, model);
-      case "deepseek":
-        return new DeepseekModel(config.ai_api_key as string, model);
-      case "qwen2":
-      default:
-        return new Qwen2Model(config.qwen2_api_key as string, model);
-    }
+  static createAI(): IAIModel {
+    return new DeepseekModel();
   }
 }
 
