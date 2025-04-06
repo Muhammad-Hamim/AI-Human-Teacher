@@ -1,12 +1,10 @@
 import { Request, Response, NextFunction } from "express";
 import httpStatus from "http-status";
 import catchAsync from "../../utils/catchAsync";
-import AppError from "../../errors/AppError";
 import { PoemService } from "../../Models/poem/poem.service";
 import { AIFactory } from "../aifactory/AIFactory";
 import SpeechService from "../services/speech.service";
-import path from "path";
-import fs from "fs";
+
 
 const generatePoemNarration = catchAsync(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {

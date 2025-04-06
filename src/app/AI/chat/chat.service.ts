@@ -24,9 +24,12 @@ const DEFAULT_OPTIONS = {
 const processMessage = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
     const { message } = req.body;
+    const { language } = req.query;
     console.log(
       "Received message structure:",
-      req.body
+      req.body,
+      "response language:",
+      language
     );
 
     // Enhanced validation logic to handle different message structures
@@ -57,7 +60,8 @@ const processMessage = catchAsync(
 
       // Process the message and get AI response
       const aiResponse = await ai.processMessage(
-        message as Omit<TMessage, "_id">
+        message as Omit<TMessage, "_id">,
+        language as "zh-CN" | "en-US"
       );
       console.log("🔍 aiResponse", aiResponse);
       // Generate TTS for the AI response
@@ -430,7 +434,7 @@ async function generateAIResponse(
     };
 
     // Get AI response (stored in database)
-    const response = await ai.processMessage(messageData);
+    const response = await ai.processMessage(messageData, 'zh-CN');
 
     // Generate TTS for the response
     try {

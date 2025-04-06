@@ -1,14 +1,12 @@
 import { OpenAI } from "openai";
 import config from "../../../app/config";
 import mongoose, { Document } from "mongoose";
-import { systemPrompt } from "../../utils/systemPrompt";
+import { systemPrompt } from "../../utils/testSystemResponse";
 import { TLine, TPoem } from "../../Models/poem/poem.interface";
 import {
   generatePoemDatabaseContext,
   getAllPoemSummaries,
 } from "../../utils/poemTraining";
-import ServerConfig from "../../config/server.config";
-
 // Type definitions for messages
 export type TUser = {
   senderType: "user" | "assistant";
@@ -54,13 +52,17 @@ interface AIMessage {
 interface IAIModel {
   generateCompletion(
     messages: AIMessage[],
+    language: "en-US" | "zh-CN",
     options?: AIModelOptions
   ): Promise<string>;
   generateCompletionStream(
     messages: AIMessage[],
     options?: AIModelOptions
   ): AsyncGenerator<string, void, unknown>;
-  processMessage(messageData: Omit<TMessage, "_id">): Promise<TMessage>;
+  processMessage(
+    messageData: Omit<TMessage, "_id">,
+    language: "en-US" | "zh-CN"
+  ): Promise<TMessage>;
   processMessageStream(
     messageData: Omit<TMessage, "_id">
   ): AsyncGenerator<Partial<TMessage>, TMessage, unknown>;
@@ -85,7 +87,7 @@ abstract class BaseAIModel implements IAIModel {
       this.messageModel = mongoose.model<TMessageDocument>("Message");
     } catch (error) {
       // Since we can't directly import the model (it might not be registered yet),
-      // we'll register it when needed in the actual service
+
       this.messageModel = mongoose.model<TMessageDocument>("Message");
     }
 
@@ -548,13 +550,14 @@ abstract class BaseAIModel implements IAIModel {
 
   // Convert TMessage array to AIMessage array for API
   protected async conversationToMessages(
-    history: TMessage[]
+    history: TMessage[],
+    language: "en-US" | "zh-CN"
   ): Promise<AIMessage[]> {
     // Start with a system message
     const messages: AIMessage[] = [
       {
         role: "system",
-        content: systemPrompt,
+        content: systemPrompt(language),
       },
     ];
 
@@ -602,7 +605,8 @@ abstract class BaseAIModel implements IAIModel {
 
   // Process a new message and generate a response
   async processMessage(
-    messageData: Omit<TMessage, "_id">
+    messageData: Omit<TMessage, "_id">,
+    language: "en-US" | "zh-CN"
   ): Promise<TMessageDocument> {
     // 1. Save the user message to database
     const savedUserMessage = await this.saveMessage(messageData);
@@ -611,10 +615,10 @@ abstract class BaseAIModel implements IAIModel {
     const history = await this.getConversationHistory(messageData.chatId);
 
     // 3. Convert to AI messages format with poem context
-    const messages = await this.conversationToMessages(history);
+    const messages = await this.conversationToMessages(history, language);
 
     // 4. Generate AI response
-    const aiResponseContent = await this.generateCompletion(messages);
+    const aiResponseContent = await this.generateCompletion(messages, language);
 
     // 5. Create AI response message
     const aiResponseData: Omit<TMessage, "_id"> = {
@@ -639,7 +643,8 @@ abstract class BaseAIModel implements IAIModel {
 
   // Process a message and stream the response
   async *processMessageStream(
-    messageData: Omit<TMessage, "_id">
+    messageData: Omit<TMessage, "_id">,
+    language?: "en-US" | "zh-CN"
   ): AsyncGenerator<Partial<TMessage>, TMessageDocument, unknown> {
     try {
       // 1. Save the user message to database
@@ -649,7 +654,10 @@ abstract class BaseAIModel implements IAIModel {
       const history = await this.getConversationHistory(messageData.chatId);
 
       // 3. Convert to AI messages format with poem context
-      const messages = await this.conversationToMessages(history);
+      const messages = await this.conversationToMessages(
+        history,
+        language as "zh-CN" | "en-US"
+      );
 
       // 4. Create initial AI response message with streaming flag
       const aiResponseData: Omit<TMessage, "_id"> = {
@@ -722,6 +730,7 @@ abstract class BaseAIModel implements IAIModel {
   // Generate a completion from messages
   async generateCompletion(
     messages: AIMessage[],
+    language: "en-US" | "zh-CN",
     options: AIModelOptions = {}
   ): Promise<string> {
     // Changed default maxTokens from 2000 to 4000 to allow longer responses
