@@ -283,6 +283,7 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
         const response = await requestAiResponse({
           prompt: contextualPrompt,
           chatId: currentChatId as string,
+          language,
         }).unwrap();
 
         console.log("AI response:", response);
