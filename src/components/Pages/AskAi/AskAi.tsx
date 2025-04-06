@@ -1,7 +1,7 @@
 import type React from "react";
 import { useState, useRef, useEffect } from "react";
 import { useForm } from "react-hook-form";
-import { Search, Plus, BrainCircuit, Send, Mic } from "lucide-react";
+import { Search, Plus, BrainCircuit, Send, Mic, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
@@ -16,20 +16,21 @@ import {
   useCreateChatMutation,
   useGetChatHistoryQuery,
 } from "@/redux/features/chatHistory/chatHistoryApi";
-import {
-  useGetMessagesQuery,
-  useRequestAiResponseMutation,
-} from "@/redux/features/chat/chatApi";
+import { useRequestAiResponseMutation } from "@/redux/features/chat/chatApi";
 import { FUserId } from "@/types/chat/TChatHistory";
 import TeacherVoiceModal from "./voice-chat/TeacherVoiceModal";
 import ThinkingAnimation from "./Conversation/ThinkingAnimation";
 import ChatMessage from "./Conversation/ChatMessage";
 import { motion } from "framer-motion";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { toast } from "sonner";
 
 type FormInputs = {
   message: string;
 };
-
+// Available language options
+type Language = "zh-CN" | "en-US";
 const AskAi = () => {
   const { chatId } = useParams<{ chatId: string }>();
   const [rows, setRows] = useState(1);
@@ -39,13 +40,11 @@ const AskAi = () => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [createChat] = useCreateChatMutation();
-  const { refetch: refetchMessages } = useGetMessagesQuery(chatId || "", {
-    skip: !chatId,
-  });
   const { refetch: refetchChatHistory } = useGetChatHistoryQuery(FUserId);
   const navigate = useNavigate();
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
-
+  // Add language state - default to Chinese
+  const [language, setLanguage] = useState<Language>("zh-CN");
   const { register, handleSubmit, reset, watch } = useForm<FormInputs>({
     defaultValues: {
       message: "",
@@ -102,13 +101,9 @@ const AskAi = () => {
             const response = await requestAiResponse({
               prompt: messageContent,
               chatId: currentChatId,
+              language,
             });
             console.log(response);
-
-            // Only refetch messages if we have a valid chatId
-            if (currentChatId) {
-              await refetchMessages();
-            }
           } catch (apiError) {
             console.error("API Error:", apiError);
           }
@@ -146,6 +141,15 @@ const AskAi = () => {
     setIsVoiceModalOpen(false);
   };
 
+  // Handle language toggle change
+  const handleLanguageChange = (checked: boolean) => {
+    // Set the new language based on the toggle
+    const newLanguage: Language = checked ? "en-US" : "zh-CN";
+    setLanguage(newLanguage);
+    toast.info(
+      `Language changed to ${newLanguage === "zh-CN" ? "Chinese" : "English"}`
+    );
+  };
   return (
     <TooltipProvider>
       <motion.main
@@ -154,6 +158,23 @@ const AskAi = () => {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
       >
+        {/* Add language toggle at the top */}
+        <div className="flex items-center justify-end gap-2 p-4 border-b border-gray-800">
+          <Label
+            htmlFor="language-toggle"
+            className="text-sm text-gray-400 font-medium flex items-center"
+          >
+            <Globe className="h-4 w-4 mr-2" />
+            {language === "zh-CN" ? "中文" : "English"}
+          </Label>
+          <Switch
+            id="language-toggle"
+            checked={language === "en-US"}
+            onCheckedChange={handleLanguageChange}
+            aria-label="Toggle language"
+          />
+        </div>
+
         <div className="flex-1 overflow-y-auto message-scrollbar p-6 pb-4 bg-gray-900">
           <ChatMessage />
           {isThinking && <ThinkingAnimation />}

@@ -103,21 +103,6 @@ const markdownComponents = {
   ),
 };
 
-// Utility function to remove markdown syntax for cleaner text-to-speech
-// This function is no longer needed since we're using backend audio
-// const stripMarkdown = (text: string) => {
-//   return text
-//     .replace(/\*\*(.*?)\*\*/g, "$1") // Remove bold
-//     .replace(/\*(.*?)\*/g, "$1") // Remove italic
-//     .replace(/\[(.*?)\]\(.*?\)/g, "$1") // Remove links but keep text
-//     .replace(/\n>/g, "\n") // Remove blockquote markers
-//     .replace(/`(.*?)`/g, "$1") // Remove inline code markers
-//     .replace(/```[\s\S]*?```/g, "") // Remove code blocks
-//     .replace(/#/g, "") // Remove heading markers
-//     .replace(/\n- /g, "\n") // Remove list markers
-//     .replace(/\n\d+\. /g, "\n"); // Remove ordered list markers
-// };
-
 const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
   const { chatId } = useParams<{ chatId: string }>();
   const navigate = useNavigate();
