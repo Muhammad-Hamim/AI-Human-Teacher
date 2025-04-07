@@ -3,11 +3,27 @@ import httpStatus from "http-status";
 import catchAsync from "../../utils/catchAsync";
 import { PoemService } from "../../Models/poem/poem.service";
 import { AIFactory } from "../aifactory/AIFactory";
+const systemPrompt = (language: "zh-CN" | "en-US") => {
+  return `You are a professional scholar of Chinese culture and an expert in ancient Chinese poetry. You will provide deep cultural insights and analyses of ancient poems.
+    Please follow these rules:
+    1. Respond in ${language === "zh-CN" ? "Chinese" : "English"}.
+    2. Analyze the cultural elements and symbolic meanings in the poem
+    3. Explain the poem's connection to the social, political, and ideological trends of the time
+    4. Reveal the traditional values and philosophical ideas reflected in the poem
+    5. Discuss how the artistic features of the poem embody Chinese aesthetic concepts
+    6. Explore the poem's links to relevant cultural customs, festivals, or folk traditions
+    7. Compare the poem to other poems from the same period or with related themes
+    8. Explain the poem's status and influence in Chinese literary history
+    9. Must include the following sections with headings: Cultural Background, Symbolic Analysis, Literary Tradition, Philosophical Ideas, Modern Significance
+    10. Each section should have 2-3 concise and content-rich paragraphs, with a total word count of 800-1200 words
 
+    The response should be deep and insightful, demonstrating a professional understanding of classical Chinese culture. Don't simply summarize the poem, but provide fresh cultural perspectives and analyses.`;
+};
 const generatePoemInsights = catchAsync(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { poemId } = req.body;
+      const { language } = req.query;
       console.log(poemId);
       if (!poemId) {
         res.status(httpStatus.BAD_REQUEST).json({
@@ -40,26 +56,12 @@ const generatePoemInsights = catchAsync(
       const poemHistoricalContext = poem.historicalCulturalContext;
 
       // 3. Create system prompt for cultural insights
-      const systemPrompt = `你是一位专业的中国文化学者和古诗专家。你将提供关于古诗的深度文化洞察和分析。
-请遵循以下规则:
-1. 用中文回答
-2. 分析诗歌中蕴含的文化元素和象征意义
-3. 解释诗歌与当时社会、政治、思想潮流的关联
-4. 揭示诗歌中反映的传统价值观和哲学思想
-5. 分析诗歌的艺术特色如何体现中国美学观念
-6. 探讨诗歌与相关文化习俗、节日或民间传统的联系
-7. 比较该诗与同时期或相关主题诗歌的异同
-8. 解释诗歌在中国文学史上的地位和影响
-9. 必须包含以下几个部分，并用标题分隔：文化背景、象征分析、文学传统、哲学思想、现代意义
-10. 每个部分应该有2-3段简明且内容丰富的分析，总字数控制在800-1200字之间
-
-回答应该有深度且富有洞察力，展现对中国古典文化的专业理解。不要简单复述诗歌内容，而要提供新颖的文化视角和分析。`;
 
       // 4. Generate cultural insights
       const messages = [
         {
           role: "system" as const,
-          content: systemPrompt,
+          content: systemPrompt(language as 'zh-CN' | 'en-US'),
         },
         {
           role: "user" as const,
@@ -80,10 +82,14 @@ ${poemHistoricalContext}`,
       ];
 
       // Generate the cultural insights
-      const insightsText = await ai.generateCompletion(messages, {
-        temperature: 0.7,
-        maxTokens: 1500,
-      });
+      const insightsText = await ai.generateCompletion(
+        messages,
+        language as "zh-CN" | "en-US",
+        {
+          temperature: 0.7,
+          maxTokens: 2500,
+        }
+      );
 
       // 5. Return the generated insights
       res.status(httpStatus.OK).json({

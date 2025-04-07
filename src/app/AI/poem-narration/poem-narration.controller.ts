@@ -4,13 +4,28 @@ import catchAsync from "../../utils/catchAsync";
 import { PoemService } from "../../Models/poem/poem.service";
 import { AIFactory } from "../aifactory/AIFactory";
 import SpeechService from "../services/speech.service";
+const systemPrompt = (language: string): string => {
+  return `You are a professional poetry reciter and storyteller. Your task is to create a recitation script for classical Chinese poems, expressing the artistic conception and emotions of the poem in a storytelling manner.
+Follow these rules:
+1. Create the recitation script for a Chinese audience (the output should be in ${language}).
+2. Incorporate the historical and cultural background of the poem
+3. Develop it as a story, not just a simple reading
+4. Use vivid and beautiful language
+5. Explain the meaning of the poem appropriately while maintaining fluency
+6. Keep the word count between 300-500 words
+7. Use conversational expressions suitable for recitation
+8. Structure: brief introduction -> poem recitation -> interpretation -> storytelling expression -> brief conclusion
+9. Ensure the content fully conforms to traditional Chinese culture
+10. Pay attention to rhythm and tonal variations
 
-
+Do not explain your thought process in your response, directly provide the recitation script.`;
+};
 const generatePoemNarration = catchAsync(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { poemId } = req.body;
-
+      const { language } = req.query;
+      console.log('"Generating poem narration...");',language)
       if (!poemId) {
         res.status(httpStatus.BAD_REQUEST).json({
           success: false,
@@ -42,26 +57,12 @@ const generatePoemNarration = catchAsync(
       const poemHistoricalContext = poem.historicalCulturalContext;
 
       // 3. Create system prompt for storytelling narration
-      const systemPrompt = `You are a professional poetry reciter and storyteller. Your task is to create a recitation script for classical Chinese poems, expressing the artistic conception and emotions of the poem in a storytelling manner.
-Follow these rules:
-1. Create the recitation script for a Chinese audience (the output should be in Chinese)
-2. Incorporate the historical and cultural background of the poem
-3. Develop it as a story, not just a simple reading
-4. Use vivid and beautiful language
-5. Explain the meaning of the poem appropriately while maintaining fluency
-6. Keep the word count between 300-500 words
-7. Use conversational expressions suitable for recitation
-8. Structure: brief introduction -> poem recitation -> interpretation -> storytelling expression -> brief conclusion
-9. Ensure the content fully conforms to traditional Chinese culture
-10. Pay attention to rhythm and tonal variations
-
-Do not explain your thought process in your response, directly provide the recitation script.`;
 
       // 4. Generate storytelling narration
       const messages = [
         {
           role: "system" as const,
-          content: systemPrompt,
+          content: systemPrompt(language as "zh-CN" | "en-US"),
         },
         {
           role: "user" as const,
@@ -82,10 +83,14 @@ ${poemHistoricalContext}`,
       ];
 
       // Generate the narration
-      const narrativeText = await ai.generateCompletion(messages, {
-        temperature: 0.7,
-        maxTokens: 2000, // Limit token count to avoid too long text
-      });
+      const narrativeText = await ai.generateCompletion(
+        messages,
+        language as "zh-CN" | "en-US",
+        {
+          temperature: 0.7,
+          maxTokens: 2000, // Limit token count to avoid too long text
+        }
+      );
 
       // Limit the text length for TTS to avoid errors (max 1000 characters)
       const limitedText =
