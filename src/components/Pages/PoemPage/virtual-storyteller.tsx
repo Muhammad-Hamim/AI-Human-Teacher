@@ -13,8 +13,9 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Volume2, Pause, Play, SkipBack, Music, Loader2 } from "lucide-react";
 import { useGetPoemNarrationMutation } from "@/redux/features/interactivePoem/deepSeekApi";
+import ToggleLanguage from "@/components/common/ToggleLanguage";
 
-interface PoemNarrationResponse {
+export interface PoemNarrationResponse {
   success: boolean;
   message: string;
   data: {
@@ -38,6 +39,8 @@ interface PoemNarrationResponse {
 interface VirtualStorytellerProps {
   poem: any;
 }
+// Available language options
+type TLanguage = "zh-CN" | "en-US";
 
 export default function VirtualStoryteller({ poem }: VirtualStorytellerProps) {
   const [isGenerating, setIsGenerating] = useState(false);
@@ -46,7 +49,8 @@ export default function VirtualStoryteller({ poem }: VirtualStorytellerProps) {
   const [speed, setSpeed] = useState(1);
   const [narrationText, setNarrationText] = useState<string | null>(null);
   const [audioSrc, setAudioSrc] = useState<string | null>(null);
-
+  // Add language state - default to Chinese
+  const [language, setLanguage] = useState<TLanguage>("zh-CN");
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Use the mutation hook
@@ -74,6 +78,7 @@ export default function VirtualStoryteller({ poem }: VirtualStorytellerProps) {
     try {
       const response = (await getPoemNarration({
         poemId: poem._id, // Use _id instead of id
+        language,
       }).unwrap()) as PoemNarrationResponse;
 
       if (response.success && response.data.narration) {
@@ -178,7 +183,8 @@ export default function VirtualStoryteller({ poem }: VirtualStorytellerProps) {
                   onValueChange={(value) => setSpeed(value[0])}
                 />
               </div>
-
+              {/* Select story telling Language: */}
+              <ToggleLanguage language={language} setLanguage={setLanguage} />
               <Button
                 onClick={handleGenerateNarration}
                 disabled={isGenerating || isLoading}

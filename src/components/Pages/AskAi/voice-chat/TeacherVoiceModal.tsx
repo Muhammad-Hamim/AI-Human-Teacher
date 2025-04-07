@@ -10,8 +10,7 @@ import {
   Volume2,
   VolumeX,
   StopCircle,
-  Loader2,
-  Globe,
+  Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,8 +20,6 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import { useRequestAiResponseMutation } from "@/redux/features/chat/chatApi";
 import { useParams } from "react-router";
 import { useCreateChatMutation } from "@/redux/features/chatHistory/chatHistoryApi";
@@ -32,6 +29,7 @@ import AudioAnalyzer from "./AudioAnalyzer";
 import SpeechWaveform from "./SpeechWaveform";
 import TeacherAnimation from "./TeacherAnimation";
 import rehypeRaw from "rehype-raw";
+import ToggleLanguage from "@/components/common/ToggleLanguage";
 
 // Type declarations for browser APIs
 declare global {
@@ -184,22 +182,11 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
       recognitionRef.current.lang = language;
       console.log(`Speech recognition language set to: ${language}`);
     }
-  }, [language]);
+     // Stop listening if active
 
-  // Handle language change
-  const handleLanguageChange = (checked: boolean) => {
-    // Stop listening if active
-    if (isListening) {
       stopListening();
-    }
 
-    // Set the new language based on the toggle
-    const newLanguage: Language = checked ? "en-US" : "zh-CN";
-    setLanguage(newLanguage);
-    toast.info(
-      `Language changed to ${newLanguage === "zh-CN" ? "Chinese" : "English"}`
-    );
-  };
+  }, [language]);
 
   // Handle audio analysis
   const handleAudioAnalysis = (intensity: number) => {
@@ -506,21 +493,7 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
           </div>
           <div className="flex items-center gap-3">
             {/* Language toggle */}
-            <div className="flex items-center gap-2">
-              <Label
-                htmlFor="language-toggle"
-                className="text-xs text-gray-400 font-medium"
-              >
-                <Globe className="h-3 w-3 inline-block mr-1" />
-                {language === "zh-CN" ? "中文" : "English"}
-              </Label>
-              <Switch
-                id="language-toggle"
-                checked={language === "en-US"}
-                onCheckedChange={handleLanguageChange}
-                aria-label="Toggle language"
-              />
-            </div>
+            <ToggleLanguage language={language} setLanguage={setLanguage} />
             <Button
               variant="ghost"
               size="icon"

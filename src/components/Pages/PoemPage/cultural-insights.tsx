@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2, History, BookOpen } from "lucide-react";
 import { useGetPoemInsightsMutation } from "@/redux/features/interactivePoem/deepSeekApi";
 import MarkdownRenderer from "@/components/common/MarkdownRenderer";
+import ToggleLanguage from "@/components/common/ToggleLanguage";
 
 interface CulturalInsightsProps {
   poem: any;
@@ -30,11 +31,13 @@ interface InsightData {
     generatedAt: string;
   };
 }
-
+// Available language options
+type Language = "zh-CN" | "en-US";
 export default function CulturalInsights({ poem }: CulturalInsightsProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [insights, setInsights] = useState<InsightData | null>(null);
-
+  // Add language state - default to Chinese
+  const [language, setLanguage] = useState<Language>("zh-CN");
   // Use real API endpoint for cultural insights
   const [getPoemInsights] = useGetPoemInsightsMutation();
 
@@ -42,7 +45,7 @@ export default function CulturalInsights({ poem }: CulturalInsightsProps) {
   const handleFetchInsights = async () => {
     setIsLoading(true);
     try {
-      const result = await getPoemInsights({ poemId: poem._id });
+      const result = await getPoemInsights({ poemId: poem._id,language });
       if (result.data) {
         setInsights(result.data.data);
       }
@@ -67,16 +70,20 @@ export default function CulturalInsights({ poem }: CulturalInsightsProps) {
                   Discover historical, artistic, and philosophical connections
                 </CardDescription>
               </div>
-              <Button onClick={handleFetchInsights} disabled={isLoading}>
-                {isLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Loading...
-                  </>
-                ) : (
-                  "Get Insights"
-                )}
-              </Button>
+              <div className="flex items-center gap-2">
+                {/* add language toggle */}
+                <ToggleLanguage language={language} setLanguage={setLanguage} />
+                <Button onClick={handleFetchInsights} disabled={isLoading}>
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Loading...
+                    </>
+                  ) : (
+                    "Get Insights"
+                  )}
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent>

@@ -1,3 +1,4 @@
+import { PoemNarrationResponse } from "@/components/Pages/PoemPage/virtual-storyteller";
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 
 export interface AnalysisRequest {
@@ -58,6 +59,7 @@ export interface StrokeAnimationRequest {
 
 export interface PoemInsightsRequest {
   poemId: string;
+  language: "zh-CN" | "en-US";
 }
 
 export interface PoemInsightsResponse {
@@ -133,17 +135,6 @@ export const deepSeekApi = createApi({
       }),
     }),
 
-    getPronunciationFeedback: builder.mutation<
-      any,
-      PronunciationFeedbackRequest
-    >({
-      query: (request) => ({
-        url: "pronunciation-feedback",
-        method: "POST",
-        body: request,
-      }),
-    }),
-
     generateCreativeWriting: builder.query<any, CreativeWritingRequest>({
       query: (request) => ({
         url: "creative-writing",
@@ -151,15 +142,6 @@ export const deepSeekApi = createApi({
         body: request,
       }),
     }),
-
-    generateStorytellerNarration: builder.query<any, StorytellerRequest>({
-      query: (request) => ({
-        url: "storyteller",
-        method: "POST",
-        body: request,
-      }),
-    }),
-
     getCulturalInsights: builder.query<any, CulturalInsightRequest>({
       query: (request) => ({
         url: "cultural-insights",
@@ -176,22 +158,14 @@ export const deepSeekApi = createApi({
       }),
     }),
 
-    getCharacterStrokeAnimation: builder.query<any, StrokeAnimationRequest>({
-      query: (request) => ({
-        url: "stroke-animation",
-        method: "POST",
-        body: request,
-      }),
-    }),
-
     getPoemInsights: builder.mutation<
       PoemInsightsResponse,
       PoemInsightsRequest
     >({
-      query: (request) => ({
-        url: "ai/poem-insights/generate",
+      query: ({ poemId, language }) => ({
+        url: `ai/poem-insights/generate?language=${language}`,
         method: "POST",
-        body: request,
+        body: { poemId },
       }),
     }),
 
@@ -382,56 +356,6 @@ export const deepSeekApi = createApi({
       },
     }),
 
-    getMockStorytellerNarration: builder.query({
-      query: (params) => ({
-        url: "/mock/storyteller",
-        method: "GET",
-        params,
-      }),
-    }),
-
-    getMockCulturalInsights: builder.query<
-      any,
-      Partial<CulturalInsightRequest>
-    >({
-      queryFn: (request) => {
-        return {
-          data: {
-            insights: [
-              {
-                type: "history",
-                title: "Tang Dynasty Travel",
-                content:
-                  "During the Tang Dynasty (618-907 CE), scholars and officials often traveled far from home to take imperial examinations or serve in government posts. The difficulty of travel and communication made homesickness a common experience, reflected in much of the poetry from this period.",
-                relatedArtifact: "Tang Dynasty travel permit, 8th century",
-              },
-              {
-                type: "art",
-                title: "Moon in Chinese Painting",
-                content:
-                  "The moon has been a central motif in Chinese landscape painting for centuries. Artists like Wu Wei (15th century) created famous works depicting moonlit scenes that evoke the same contemplative mood found in Li Bai's poem.",
-                relatedArtifact:
-                  "Wu Wei's 'Fisherman by Moonlight', Ming Dynasty",
-              },
-              {
-                type: "philosophy",
-                title: "Daoist Influences",
-                content:
-                  "Li Bai was influenced by Daoist philosophy, which emphasizes harmony with nature and contemplation. The quiet observation of natural phenomena (moonlight) leading to emotional insight reflects Daoist principles of finding wisdom through observing the natural world.",
-                relatedConcept:
-                  "Wu wei (non-action) - the Daoist concept of aligning with the natural flow of the world",
-              },
-            ],
-            recommendedReadings: [
-              "The Culture of the Tang Dynasty by Charles Benn",
-              "Chinese Landscape Painting as Western Art History by James Cahill",
-              "Tao Te Ching by Laozi, translated by Stephen Mitchell",
-            ],
-          },
-        };
-      },
-    }),
-
     getMockKnowledgeBaseAnswer: builder.mutation<
       any,
       Partial<KnowledgeBaseRequest>
@@ -497,11 +421,14 @@ export const deepSeekApi = createApi({
         },
       }
     ),
-    getPoemNarration: builder.mutation({
-      query: ({ poemId }) => {
+    getPoemNarration: builder.mutation<
+      PoemNarrationResponse,
+      { poemId: string; language: string }
+    >({
+      query: ({ poemId, language }) => {
         console.log(poemId);
         return {
-          url: "/ai/poem-narration/generate",
+          url: `/ai/poem-narration/generate?language=${language}`,
           method: "POST",
           body: { poemId },
         };
@@ -513,16 +440,11 @@ export const deepSeekApi = createApi({
 export const {
   useGetPoemAnalysisQuery,
   useGenerateQuizQuery,
-  useGetPronunciationFeedbackMutation,
   useGenerateCreativeWritingQuery,
-  useGenerateStorytellerNarrationQuery,
   useGetCulturalInsightsQuery,
   useAskKnowledgeBaseMutation,
-  useGetCharacterStrokeAnimationQuery,
   useGetMockPoemAnalysisQuery,
   useGetMockQuizQuery,
-  useGetMockStorytellerNarrationQuery,
-  useGetMockCulturalInsightsQuery,
   useGetMockKnowledgeBaseAnswerMutation,
   useGetMockCreativeWritingQuery,
   useGetPoemNarrationMutation,
