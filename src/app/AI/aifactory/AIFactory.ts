@@ -52,7 +52,6 @@ interface AIMessage {
 interface IAIModel {
   generateCompletion(
     messages: AIMessage[],
-    language: "en-US" | "zh-CN",
     options?: AIModelOptions
   ): Promise<string>;
   generateCompletionStream(
@@ -618,7 +617,7 @@ abstract class BaseAIModel implements IAIModel {
     const messages = await this.conversationToMessages(history, language);
 
     // 4. Generate AI response
-    const aiResponseContent = await this.generateCompletion(messages, language);
+    const aiResponseContent = await this.generateCompletion(messages);
 
     // 5. Create AI response message
     const aiResponseData: Omit<TMessage, "_id"> = {
@@ -730,7 +729,6 @@ abstract class BaseAIModel implements IAIModel {
   // Generate a completion from messages
   async generateCompletion(
     messages: AIMessage[],
-    language: "en-US" | "zh-CN",
     options: AIModelOptions = {}
   ): Promise<string> {
     // Changed default maxTokens from 2000 to 4000 to allow longer responses

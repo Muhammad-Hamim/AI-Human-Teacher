@@ -2,53 +2,9 @@ import { TImagerySymbolism, TPoem } from "./poem.interface";
 import { Poem } from "./poem.model";
 import { AIFactory } from "../../AI/aifactory/AIFactory";
 
-// Generate imagery and symbolism for a poem
-const generateImagerySymbolism = async (
-  poemId: string
-): Promise<{ imageryAndSymbolism: TImagerySymbolism; poem: TPoem }> => {
-  try {
-    // 1. Get the poem
-    const poem = await Poem.findById(poemId);
-    if (!poem) {
-      throw new Error(`Poem with ID ${poemId} not found`);
-    }
-
-    // 2. Generate imagery and symbolism using AI
-    const imagerySymbolism = await generateImagerySymbolismWithAI(poem);
-
-    // 3. Return the imagery and symbolism along with the poem
-    return {
-      imageryAndSymbolism: imagerySymbolism,
-      poem: poem,
-    };
-  } catch (error) {
-    console.error("Error generating imagery and symbolism:", error);
-    throw error;
-  }
-};
-
-// Get imagery and symbolism for a poem
-const getImagerySymbolism = async (
-  poemId: string
-): Promise<{ imageryAndSymbolism: TImagerySymbolism; poem: TPoem }> => {
-  // Always generate fresh content without saving to DB
-  return await generateImagerySymbolism(poemId);
-};
-
-// Helper function to generate imagery and symbolism using AI
-const generateImagerySymbolismWithAI = async (
-  poem: TPoem
-): Promise<TImagerySymbolism> => {
-  try {
-    const ai = AIFactory.createAI();
-
-    // Create combined poem text for context
-    const poemText = poem.lines.map((line) => line.chinese).join("\n");
-    const poemTranslation = poem.lines
-      .map((line) => line.translation)
-      .join("\n");
-
-    const systemPrompt = `
+const systemPrompt = (language: "zh-CN" | "en-US") => {
+  if (language === "zh-CN") {
+    return `
 你是一位中国文学和诗歌分析专家。你的任务是识别和解释古典中国诗歌中的意象和象征。
 
 对于给定的诗歌，请识别3-5个关键意象元素或象征，并按以下JSON格式提供详细分析：
@@ -81,7 +37,96 @@ const generateImagerySymbolismWithAI = async (
 你的分析应该有深度、文化准确性，并且专注于这首诗歌中的特定意象，而不是泛泛而谈。
 
 重要提示：仅返回有效的JSON，不要包含任何其他文本、Markdown格式或代码块。
-`;
+    `;
+  } else {
+    return `
+You are an expert in Chinese literature and poetry analysis. Your task is to identify and interpret imagery and symbolism in classical Chinese poetry.
+
+For a given poem, identify 3-5 key imagery elements or symbols and provide a detailed analysis in the following JSON format:
+
+{
+  "imageryAndSymbolism": {
+    "element_name": {
+      "description": "A detailed explanation of the meaning of this imagery or symbol in the context of the poem",
+      "keywords": ["Actual", "Chinese characters or words", "related to this element"],
+      "culturalSignificance": [
+        "Cultural significance point 1",
+        "Cultural significance point 2",
+        "Cultural significance point 3",
+        "Cultural significance point 4"
+      ],
+      "icon": "Suggested icon name"
+    },
+    // Add more elements as needed
+  }
+}
+
+Requirements:
+1. Identify 3-5 key imagery elements or symbols in the poem
+2. "element_name" should use Chinese (e.g., "明月", "高山", "流水", etc.)
+3. "description" should explain the significance and meaning of the element in this specific poem (in English)
+4. The "keywords" array should include actual Chinese characters related to this element in the poem
+5. "culturalSignificance" should list 3-4 broader cultural meanings of the symbol in the Chinese literary tradition (in English)
+6. "icon" should suggest a simple icon name that represents the element (in English, e.g., "Moon", "Mountain", "Water", "Home", "Journey")
+
+Your analysis should be in-depth, culturally accurate, and focused on the specific imagery in this poem, not general symbolism.
+
+Important note: Only return valid JSON, and do not include any additional text, Markdown, or code blocks.
+    `;
+  }
+};
+
+// Generate imagery and symbolism for a poem
+const generateImagerySymbolism = async (
+  poemId: string,
+  language: "zh-CN" | "en-US"
+): Promise<{ imageryAndSymbolism: TImagerySymbolism; poem: TPoem }> => {
+  try {
+    // 1. Get the poem
+    const poem = await Poem.findById(poemId);
+    if (!poem) {
+      throw new Error(`Poem with ID ${poemId} not found`);
+    }
+
+    // 2. Generate imagery and symbolism using AI
+    const imagerySymbolism = await generateImagerySymbolismWithAI(
+      poem,
+      language
+    );
+
+    // 3. Return the imagery and symbolism along with the poem
+    return {
+      imageryAndSymbolism: imagerySymbolism,
+      poem: poem,
+    };
+  } catch (error) {
+    console.error("Error generating imagery and symbolism:", error);
+    throw error;
+  }
+};
+
+// Get imagery and symbolism for a poem
+const getImagerySymbolism = async (
+  poemId: string,
+  language: "zh-CN" | "en-US"
+): Promise<{ imageryAndSymbolism: TImagerySymbolism; poem: TPoem }> => {
+  // Always generate fresh content without saving to DB
+  return await generateImagerySymbolism(poemId, language);
+};
+
+// Helper function to generate imagery and symbolism using AI
+const generateImagerySymbolismWithAI = async (
+  poem: TPoem,
+  language: "zh-CN" | "en-US"
+): Promise<TImagerySymbolism> => {
+  try {
+    const ai = AIFactory.createAI();
+
+    // Create combined poem text for context
+    const poemText = poem.lines.map((line) => line.chinese).join("\n");
+    const poemTranslation = poem.lines
+      .map((line) => line.translation)
+      .join("\n");
 
     const userPrompt = `
 Analyze the imagery and symbolism in this Chinese poem:
@@ -105,7 +150,7 @@ ${poem.historicalCulturalContext}
     const messages = [
       {
         role: "system" as const,
-        content: systemPrompt,
+        content: systemPrompt(language),
       },
       {
         role: "user" as const,

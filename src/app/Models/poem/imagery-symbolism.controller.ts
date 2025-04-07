@@ -6,8 +6,11 @@ import sendResponse from "../../utils/sendResponse";
 const getImagerySymbolism = async (req: Request, res: Response) => {
   try {
     const { poemId } = req.params;
-
-    const result = await ImagerySymbolismService.getImagerySymbolism(poemId);
+    const { language } = req.query;
+    const result = await ImagerySymbolismService.getImagerySymbolism(
+      poemId,
+      language as "zh-CN" | "en-US"
+    );
 
     sendResponse(res, {
       statusCode: 200,
@@ -37,9 +40,12 @@ const getImagerySymbolism = async (req: Request, res: Response) => {
 const generateImagerySymbolism = async (req: Request, res: Response) => {
   try {
     const { poemId } = req.params;
+    const { language } = req.query;
 
-    const result =
-      await ImagerySymbolismService.generateImagerySymbolism(poemId);
+    const result = await ImagerySymbolismService.generateImagerySymbolism(
+      poemId,
+      language as "zh-CN" | "en-US"
+    );
 
     sendResponse(res, {
       statusCode: 200,

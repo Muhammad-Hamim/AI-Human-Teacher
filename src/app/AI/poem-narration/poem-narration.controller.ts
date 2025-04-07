@@ -85,7 +85,6 @@ ${poemHistoricalContext}`,
       // Generate the narration
       const narrativeText = await ai.generateCompletion(
         messages,
-        language as "zh-CN" | "en-US",
         {
           temperature: 0.7,
           maxTokens: 2000, // Limit token count to avoid too long text

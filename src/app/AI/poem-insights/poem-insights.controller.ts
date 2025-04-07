@@ -84,7 +84,6 @@ ${poemHistoricalContext}`,
       // Generate the cultural insights
       const insightsText = await ai.generateCompletion(
         messages,
-        language as "zh-CN" | "en-US",
         {
           temperature: 0.7,
           maxTokens: 2500,
