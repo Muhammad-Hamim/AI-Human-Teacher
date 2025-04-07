@@ -63,7 +63,7 @@ export default function CulturalInsights({ poem }: CulturalInsightsProps) {
       <div className="grid grid-cols-1 gap-6">
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
+            <div className="sm:flex items-center justify-between">
               <div>
                 <CardTitle>Cultural Context for "{poem.title}"</CardTitle>
                 <CardDescription>

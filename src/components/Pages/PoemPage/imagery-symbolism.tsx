@@ -28,11 +28,13 @@ import {
   useGetPoemImageMutation,
 } from "@/redux/features/interactivePoem/poemInsightsApi";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import ToggleLanguage from "@/components/common/ToggleLanguage";
 
 interface ImagerySymbolismProps {
   poem: any;
 }
-
+// Available language options
+type Language = "zh-CN" | "en-US";
 interface ImagerySymbolismData {
   imageryAndSymbolism: Record<
     string,
@@ -56,7 +58,8 @@ export default function ImagerySymbolism({ poem }: ImagerySymbolismProps) {
   const [imagePrompt, setImagePrompt] = useState<string | null>(null);
   const [activeVisualTab, setActiveVisualTab] =
     useState<string>("illustration");
-
+  // Add language state - default to Chinese
+  const [language, setLanguage] = useState<Language>("zh-CN");
   // Use RTK Query mutations for API calls
   const [getPoemImagerySymbolism, { isLoading, error: apiError }] =
     useGetPoemImagerySymbolismMutation();
@@ -69,7 +72,10 @@ export default function ImagerySymbolism({ poem }: ImagerySymbolismProps) {
     if (!poem?._id) return;
 
     try {
-      const response = await getPoemImagerySymbolism(poem._id).unwrap();
+      const response = await getPoemImagerySymbolism({
+        poemId: poem._id,
+        language,
+      }).unwrap();
       setData(response.data);
 
       // Set the first symbol as active if available
@@ -172,28 +178,32 @@ export default function ImagerySymbolism({ poem }: ImagerySymbolismProps) {
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold">Imagery & Symbolism</h2>
-        <Button
-          onClick={fetchImagerySymbolism}
-          disabled={isLoading}
-          className="gap-2"
-        >
-          {isLoading ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Analyzing...
-            </>
-          ) : data ? (
-            <>
-              <RefreshCw className="h-4 w-4" />
-              Refresh Analysis
-            </>
-          ) : (
-            <>
-              <BookOpen className="h-4 w-4" />
-              Generate Analysis
-            </>
-          )}
-        </Button>
+        <div className="sm:flex items-center gap-2">
+          {/* Language Toggle */}
+          <ToggleLanguage language={language} setLanguage={setLanguage} />
+          <Button
+            onClick={fetchImagerySymbolism}
+            disabled={isLoading}
+            className="gap-2"
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Analyzing...
+              </>
+            ) : data ? (
+              <>
+                <RefreshCw className="h-4 w-4" />
+                Refresh Analysis
+              </>
+            ) : (
+              <>
+                <BookOpen className="h-4 w-4" />
+                Generate Analysis
+              </>
+            )}
+          </Button>
+        </div>
       </div>
 
       {apiError && (

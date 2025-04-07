@@ -17,7 +17,7 @@ const ToggleLanguage = ({ language, setLanguage }: TToggleLanguageProps) => {
     );
   };
   return (
-    <div className="flex items-center justify-end gap-2 p-4 border-b border-gray-800">
+    <div className="flex items-center justify-end sm:gap-2 p-4 border-b border-gray-800">
       <Label
         htmlFor="language-toggle"
         className="text-sm text-gray-400 font-medium flex items-center"

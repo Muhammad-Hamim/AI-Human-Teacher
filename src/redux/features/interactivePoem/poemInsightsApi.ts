@@ -37,10 +37,10 @@ export const poemInsightsApi = createApi({
   endpoints: (builder) => ({
     getPoemImagerySymbolism: builder.mutation<
       { success: boolean; data: ImagerySymbolismData },
-      string
+      { poemId: string; language: string }
     >({
-      query: (poemId) => ({
-        url: `poems/imagery-symbolism/${poemId}`,
+      query: ({ poemId, language }) => ({
+        url: `poems/imagery-symbolism/${poemId}?language=${language}`,
         method: "GET",
       }),
     }),

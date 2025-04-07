@@ -1,38 +1,47 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import type React from "react"
+import type React from "react";
 
-import { useState, useRef } from "react"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Loader2, Search, BookOpen, User, Bot } from "lucide-react"
-import { useGetMockKnowledgeBaseAnswerMutation } from "@/redux/features/interactivePoem/deepSeekApi"
+import { useState, useRef } from "react";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Loader2, Search, BookOpen, User, Bot } from "lucide-react";
+import { useGetMockKnowledgeBaseAnswerMutation } from "@/redux/features/interactivePoem/deepSeekApi";
+import ToggleLanguage from "@/components/common/ToggleLanguage";
 
 interface KnowledgeBaseProps {
-  poem: any
+  poem: any;
 }
-
+// Available language options
+type Language = "zh-CN" | "en-US";
 export default function KnowledgeBase({ poem }: KnowledgeBaseProps) {
-  const [question, setQuestion] = useState("")
-  const [chatHistory, setChatHistory] = useState<any[]>([])
-  const chatEndRef = useRef<HTMLDivElement>(null)
-
+  const [question, setQuestion] = useState("");
+  const [chatHistory, setChatHistory] = useState<any[]>([]);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  // Add language state - default to Chinese
+  const [language, setLanguage] = useState<Language>("zh-CN");
   // Use mock mutation for development
-  const [askQuestion, { isLoading }] = useGetMockKnowledgeBaseAnswerMutation()
+  const [askQuestion, { isLoading }] = useGetMockKnowledgeBaseAnswerMutation();
 
   // Handle asking a question
   const handleAskQuestion = async () => {
-    if (!question.trim()) return
+    if (!question.trim()) return;
 
     // Add user question to chat history
-    setChatHistory((prev) => [...prev, { role: "user", content: question }])
+    setChatHistory((prev) => [...prev, { role: "user", content: question }]);
 
     try {
       const result = await askQuestion({
         question,
         poemContext: poem.title,
         authorContext: poem.author,
-      }).unwrap()
+      }).unwrap();
 
       // Add AI response to chat history
       setChatHistory((prev) => [
@@ -42,36 +51,37 @@ export default function KnowledgeBase({ poem }: KnowledgeBaseProps) {
           content: result.answer,
           sources: result.sources,
         },
-      ])
+      ]);
 
       // Clear input
-      setQuestion("")
+      setQuestion("");
 
       // Scroll to bottom
       setTimeout(() => {
-        chatEndRef.current?.scrollIntoView({ behavior: "smooth" })
-      }, 100)
+        chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      }, 100);
     } catch (error) {
-      console.error("Error asking question:", error)
+      console.error("Error asking question:", error);
 
       // Add error message to chat history
       setChatHistory((prev) => [
         ...prev,
         {
           role: "assistant",
-          content: "I'm sorry, I couldn't process your question. Please try again.",
+          content:
+            "I'm sorry, I couldn't process your question. Please try again.",
           error: true,
         },
-      ])
+      ]);
     }
-  }
+  };
 
   // Handle key press (Enter to submit)
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !isLoading) {
-      handleAskQuestion()
+      handleAskQuestion();
     }
-  }
+  };
 
   // Suggested questions
   const suggestedQuestions = [
@@ -79,7 +89,7 @@ export default function KnowledgeBase({ poem }: KnowledgeBaseProps) {
     "What is the significance of the moon in Chinese poetry?",
     "What are the characteristics of Tang Dynasty poetry?",
     "How does this poem reflect Chinese cultural values?",
-  ]
+  ];
 
   return (
     <div className="p-6">
@@ -87,12 +97,17 @@ export default function KnowledgeBase({ poem }: KnowledgeBaseProps) {
 
       <div className="grid grid-cols-1 gap-6">
         <Card className="overflow-hidden">
-          <CardHeader>
-            <CardTitle>Ask About Chinese Poetry</CardTitle>
-            <CardDescription>
-              Get instant answers about poems, poets, literary techniques, and cultural context
-            </CardDescription>
+          <CardHeader className="flex justify-between items-center">
+            <div>
+              <CardTitle>Ask a Question</CardTitle>
+              <CardDescription>
+                Get answers about Chinese poetry and culture
+              </CardDescription>
+            </div>
+            {/* Language Toggle */}
+            <ToggleLanguage language={language} setLanguage={setLanguage} />
           </CardHeader>
+
           <CardContent>
             <div className="flex flex-col h-[500px]">
               <div className="flex-1 overflow-y-auto mb-4 space-y-4">
@@ -107,8 +122,8 @@ export default function KnowledgeBase({ poem }: KnowledgeBaseProps) {
                           variant="outline"
                           className="justify-start h-auto py-2 text-left"
                           onClick={() => {
-                            setQuestion(q)
-                            setTimeout(() => handleAskQuestion(), 100)
+                            setQuestion(q);
+                            setTimeout(() => handleAskQuestion(), 100);
                           }}
                         >
                           {q}
@@ -118,18 +133,29 @@ export default function KnowledgeBase({ poem }: KnowledgeBaseProps) {
                   </div>
                 ) : (
                   chatHistory.map((message, index) => (
-                    <div key={index} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
+                    <div
+                      key={index}
+                      className={`flex ${
+                        message.role === "user"
+                          ? "justify-end"
+                          : "justify-start"
+                      }`}
+                    >
                       <div
                         className={`max-w-[80%] rounded-lg p-3 ${
                           message.role === "user"
                             ? "bg-primary text-primary-foreground"
                             : message.error
-                              ? "bg-destructive text-destructive-foreground"
-                              : "bg-muted"
+                            ? "bg-destructive text-destructive-foreground"
+                            : "bg-muted"
                         }`}
                       >
                         <div className="flex items-center gap-2 mb-1">
-                          {message.role === "user" ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
+                          {message.role === "user" ? (
+                            <User className="h-4 w-4" />
+                          ) : (
+                            <Bot className="h-4 w-4" />
+                          )}
                           <span className="text-xs font-medium">
                             {message.role === "user" ? "You" : "AI Assistant"}
                           </span>
@@ -140,9 +166,11 @@ export default function KnowledgeBase({ poem }: KnowledgeBaseProps) {
                           <div className="mt-2 pt-2 border-t border-primary-foreground/20 text-xs">
                             <p className="font-medium mb-1">Sources:</p>
                             <ul className="list-disc list-inside space-y-1">
-                              {message.sources.map((source: string, i: number) => (
-                                <li key={i}>{source}</li>
-                              ))}
+                              {message.sources.map(
+                                (source: string, i: number) => (
+                                  <li key={i}>{source}</li>
+                                )
+                              )}
                             </ul>
                           </div>
                         )}
@@ -161,8 +189,15 @@ export default function KnowledgeBase({ poem }: KnowledgeBaseProps) {
                   onKeyDown={handleKeyPress}
                   disabled={isLoading}
                 />
-                <Button onClick={handleAskQuestion} disabled={!question.trim() || isLoading}>
-                  {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                <Button
+                  onClick={handleAskQuestion}
+                  disabled={!question.trim() || isLoading}
+                >
+                  {isLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Search className="h-4 w-4" />
+                  )}
                 </Button>
               </div>
             </div>
@@ -170,6 +205,5 @@ export default function KnowledgeBase({ poem }: KnowledgeBaseProps) {
         </Card>
       </div>
     </div>
-  )
+  );
 }
-
