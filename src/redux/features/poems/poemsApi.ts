@@ -46,7 +46,9 @@ export interface Poem {
 
 export const poemsApi = createApi({
   reducerPath: "poemsApi",
-  baseQuery: fetchBaseQuery({ baseUrl: "http://localhost:5000/api/v1" }),
+  baseQuery: fetchBaseQuery({
+    baseUrl: "http://localhost:5000/api/v1",
+  }),
   tagTypes: ["Poems"],
   endpoints: (builder) => ({
     getPoems: builder.query<{ data: Poem[] }, void>({

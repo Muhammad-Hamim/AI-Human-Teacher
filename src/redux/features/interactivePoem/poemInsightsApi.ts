@@ -33,7 +33,9 @@ interface PoemImageResponse {
 
 export const poemInsightsApi = createApi({
   reducerPath: "poemInsightsApi",
-  baseQuery: fetchBaseQuery({ baseUrl: "http://localhost:5000/api/v1/" }),
+  baseQuery: fetchBaseQuery({
+    baseUrl: "http://localhost:5000/api/v1/",
+  }),
   endpoints: (builder) => ({
     getPoemImagerySymbolism: builder.mutation<
       { success: boolean; data: ImagerySymbolismData },

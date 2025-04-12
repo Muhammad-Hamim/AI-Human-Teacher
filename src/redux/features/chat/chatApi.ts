@@ -10,9 +10,9 @@ export const chatApi = createApi({
   endpoints: (builder) => ({
     requestAiResponse: builder.mutation<
       TMessage,
-      { prompt: string; chatId: string,language:string }
+      { prompt: string; chatId: string; language: string }
     >({
-      query: ({ prompt, chatId,language }) => {
+      query: ({ prompt, chatId, language }) => {
         const message = {
           chatId,
           userId: "641e23bc79b28a2f9c8d4567",
@@ -32,7 +32,7 @@ export const chatApi = createApi({
         const body = {
           message,
         };
-        console.log('request body:', body);
+        console.log("request body:", body);
         return {
           url: `/ai/chat/process-message?language=${language}`,
           method: "POST",
@@ -71,7 +71,7 @@ export const chatApi = createApi({
         };
 
         const body = {
-          message
+          message,
         };
 
         console.log("Stream request body:", JSON.stringify(body, null, 2));
