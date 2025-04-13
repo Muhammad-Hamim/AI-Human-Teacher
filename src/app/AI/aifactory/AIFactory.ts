@@ -1,12 +1,12 @@
-import { OpenAI } from "openai";
-import config from "../../../app/config";
 import mongoose, { Document } from "mongoose";
+import config from "../../../app/config";
 import { systemPrompt } from "../../utils/testSystemResponse";
 import { TLine, TPoem } from "../../Models/poem/poem.interface";
 import {
   generatePoemDatabaseContext,
   getAllPoemSummaries,
 } from "../../utils/poemTraining";
+
 // Type definitions for messages
 export type TUser = {
   senderType: "user" | "assistant";
@@ -67,66 +67,47 @@ interface IAIModel {
   ): AsyncGenerator<Partial<TMessage>, TMessage, unknown>;
 }
 
-// Abstract base class for AI models
+// Base class for AI models
 abstract class BaseAIModel implements IAIModel {
-  protected client: OpenAI;
   protected model: string;
   protected messageModel: mongoose.Model<TMessageDocument>;
   protected poemModel!: mongoose.Model<TPoem & Document>;
+  protected apiKey: string;
+  protected baseURL?: string;
 
   constructor(apiKey: string, model: string, baseURL?: string) {
-    this.client = new OpenAI({
-      apiKey,
-      baseURL,
-    });
+    this.apiKey = apiKey;
     this.model = model;
+    this.baseURL = baseURL;
 
     // Get the Message model
     try {
       this.messageModel = mongoose.model<TMessageDocument>("Message");
     } catch (error) {
-      // Since we can't directly import the model (it might not be registered yet),
-
       this.messageModel = mongoose.model<TMessageDocument>("Message");
     }
 
-    // Get the Poem model - try multiple collection names
+    // Get the Poem model
     this.getPoemModel();
   }
 
   // Move the poem model initialization to a separate method without async
   private getPoemModel(): void {
     try {
-      // Default to "Poem" if no collection found
       this.poemModel = mongoose.model<TPoem & Document>("Poem");
-      console.log("Using default Poem model");
     } catch (error) {
-      console.error("Error finding poem collections:", error);
-
-      // Try with lowercase collection name as MongoDB might be case-sensitive
       try {
         this.poemModel = mongoose.model<TPoem & Document>("poems");
-        console.log("Successfully loaded poems model (lowercase)");
       } catch (innerError) {
-        console.error("Error loading poem model:", error);
-        console.error("Error loading poems model:", innerError);
-
-        // Get all model names for debugging
-        console.log("Available models:", Object.keys(mongoose.models));
-
-        // Last resort - use any available poem model
         const poemModelName = Object.keys(mongoose.models).find((name) =>
           name.toLowerCase().includes("poem")
         );
 
         if (poemModelName) {
-          console.log(`Using found poem model: ${poemModelName}`);
           this.poemModel = mongoose.model(poemModelName) as mongoose.Model<
             TPoem & Document
           >;
         } else {
-          // If no model is found, create a placeholder to prevent errors
-          console.log("No poem model found, creating placeholder model");
           this.poemModel = mongoose.model<TPoem & Document>("Poem");
         }
       }
@@ -155,19 +136,12 @@ abstract class BaseAIModel implements IAIModel {
 
   // Get relevant poem data based on user query
   protected async getRelevantPoemData(userMessage: string): Promise<string> {
-    // Parse the user message to determine if it's a poem query
     const isPoemQuery = this.isPoemRelatedQuery(userMessage);
-
-    console.log(
-      `Checking if message is poem-related: "${userMessage.substring(0, 50)}${userMessage.length > 50 ? "..." : ""}"`
-    );
-    console.log(`Is poem query: ${isPoemQuery}`);
 
     if (!isPoemQuery) {
       return "";
     }
 
-    // Check if the query is about the database contents
     const isDatabaseQuery =
       userMessage.toLowerCase().includes("database") ||
       userMessage.toLowerCase().includes("how many") ||
@@ -175,28 +149,21 @@ abstract class BaseAIModel implements IAIModel {
       userMessage.toLowerCase().includes("what poems");
 
     if (isDatabaseQuery) {
-      console.log("Processing database contents query");
       return await this.getAllPoemSummaries();
     }
 
-    // Make sure we have a valid poemModel
     if (!this.poemModel) {
-      console.error("Poem model not initialized");
       return "Database error: Poem model not initialized.";
     }
 
-    // Look for text inside quotation marks (single or double)
     const quotationMatch =
       userMessage.match(/["'](.+?)["']/i) ||
       userMessage.match(/[「」""《》](.+?)[」」""《》]/i);
 
     if (quotationMatch && quotationMatch[1]) {
-      // The user provided text in quotation marks - do an exact match query
       const exactSearchText = quotationMatch[1].trim();
-      console.log(`Detected text in quotation marks: "${exactSearchText}"`);
 
       try {
-        // Try to find the exact poem by exact match
         const exactPoem = await this.poemModel
           .findOne({
             $or: [
@@ -208,11 +175,6 @@ abstract class BaseAIModel implements IAIModel {
           .lean();
 
         if (exactPoem) {
-          console.log(
-            `Found exact match: "${exactPoem.title}" by ${exactPoem.author}`
-          );
-
-          // Format just this specific poem data for context
           let poemContext = "POEM DATABASE CONTEXT:\n\n";
           poemContext += `Title: ${exactPoem.title}\n`;
           poemContext += `Author: ${exactPoem.author}\n`;
@@ -231,7 +193,6 @@ abstract class BaseAIModel implements IAIModel {
           poemContext += `Explanation: ${exactPoem.explanation}\n`;
           poemContext += `Historical & Cultural Context: ${exactPoem.historicalCulturalContext}\n\n`;
 
-          // If JSON format was requested, add the JSON representation
           if (
             userMessage.toLowerCase().includes("json") ||
             userMessage.toLowerCase().includes("format") ||
@@ -244,42 +205,30 @@ abstract class BaseAIModel implements IAIModel {
               "INSTRUCTION: When asked for JSON format, provide the data exactly as shown in the JSON FORMAT section above.";
           }
 
-          console.log(
-            `Generated exact match poem context of length: ${poemContext.length}`
-          );
           return poemContext;
         } else {
-          console.log(`No exact match found for: "${exactSearchText}"`);
           return "No relevant data found in the database for your exact search. Please try a different query.";
         }
       } catch (error) {
-        console.error(
-          `Error searching for exact match "${exactSearchText}":`,
-          error
-        );
         return "No relevant data found in the database for your exact search. Please try a different query.";
       }
     }
 
-    // Check if the query is requesting a random poem
     const isRandomPoemRequest =
       userMessage.toLowerCase().includes("random poem") ||
       (userMessage.toLowerCase().includes("random") &&
         userMessage.toLowerCase().includes("poem")) ||
       (userMessage.toLowerCase().includes("any") &&
         userMessage.toLowerCase().includes("poem")) ||
-      !quotationMatch; // If no quotation marks, treat as random request
+      !quotationMatch;
 
     if (isRandomPoemRequest) {
-      console.log("Processing random poem request");
       try {
-        // Get a random poem from the database
         const count = await this.poemModel.countDocuments();
         if (count === 0) {
           return "No poems found in the database.";
         }
 
-        // Get a random poem using aggregation with $sample
         const randomPoems = await this.poemModel.aggregate([
           { $sample: { size: 1 } },
         ]);
@@ -289,11 +238,7 @@ abstract class BaseAIModel implements IAIModel {
         }
 
         const randomPoem = randomPoems[0];
-        console.log(
-          `Retrieved random poem: "${randomPoem.title}" by ${randomPoem.author}`
-        );
 
-        // Format the poem data
         let poemContext = "RANDOM POEM FROM DATABASE:\n\n";
         poemContext += `Title: ${randomPoem.title}\n`;
         poemContext += `Author: ${randomPoem.author}\n`;
@@ -312,7 +257,6 @@ abstract class BaseAIModel implements IAIModel {
         poemContext += `Explanation: ${randomPoem.explanation}\n`;
         poemContext += `Historical & Cultural Context: ${randomPoem.historicalCulturalContext}\n\n`;
 
-        // Always include JSON representation for random poem requests
         poemContext += "JSON FORMAT:\n```json\n";
         poemContext += JSON.stringify(randomPoem, null, 2);
         poemContext += "\n```\n\n";
@@ -321,18 +265,13 @@ abstract class BaseAIModel implements IAIModel {
 
         return poemContext;
       } catch (error) {
-        console.error("Error retrieving random poem:", error);
         return "No relevant data found in the database.";
       }
     }
 
-    // If we reach here, try to do a keyword search as a fallback
     try {
-      // Extract potential keywords from user message
       const keywords = this.extractKeywords(userMessage);
-      console.log("Extracted keywords for fallback search:", keywords);
 
-      // Create a regex search condition for poem title, author, or dynasty
       const searchConditions = keywords.map((keyword) => ({
         $or: [
           { title: { $regex: keyword, $options: "i" } },
@@ -343,14 +282,6 @@ abstract class BaseAIModel implements IAIModel {
         ],
       }));
 
-      console.log(
-        "Searching poems with conditions:",
-        searchConditions.length > 0
-          ? JSON.stringify(searchConditions, null, 2)
-          : "No specific conditions (retrieving samples)"
-      );
-
-      // Find relevant poems (limit to prevent context overflow)
       const poems = await this.poemModel
         .find(
           searchConditions.length > 0 ? { $or: searchConditions } : {},
@@ -359,20 +290,13 @@ abstract class BaseAIModel implements IAIModel {
         )
         .lean();
 
-      console.log(`Found ${poems.length} matching poems in database`);
-
       if (poems.length === 0) {
-        console.log(
-          "No specific poems found matching the query, returning general summary"
-        );
         return "No relevant data found in the database for your query.";
       }
 
-      // Format poem data for context
       let poemContext = "POEM DATABASE CONTEXT:\n\n";
 
       poems.forEach((poem: TPoem, index: number) => {
-        console.log(`Including poem: ${poem.title} by ${poem.author}`);
         poemContext += `POEM ${index + 1}:\n`;
         poemContext += `Title: ${poem.title}\n`;
         poemContext += `Author: ${poem.author}\n`;
@@ -392,17 +316,13 @@ abstract class BaseAIModel implements IAIModel {
         poemContext += `Historical & Cultural Context: ${poem.historicalCulturalContext}\n\n`;
       });
 
-      console.log(`Generated poem context of length: ${poemContext.length}`);
       return poemContext;
     } catch (error) {
-      console.error("Error fetching poem data:", error);
       return "No relevant data found in the database.";
     }
   }
 
-  // Check if a message is likely to be a poem-related query
   private isPoemRelatedQuery(message: string): boolean {
-    // Match requests for JSON format
     if (
       (message.toLowerCase().includes("json") ||
         message.toLowerCase().includes("format") ||
@@ -411,21 +331,17 @@ abstract class BaseAIModel implements IAIModel {
       (message.toLowerCase().includes("poem") ||
         message.toLowerCase().includes("title"))
     ) {
-      console.log("Detected request for poem data in JSON format");
       return true;
     }
 
-    // Match queries about database contents
     if (
       message.toLowerCase().includes("database") &&
       (message.toLowerCase().includes("title") ||
         message.toLowerCase().includes("collection"))
     ) {
-      console.log("Detected database inquiry about poems");
       return true;
     }
 
-    // Original poem keywords check
     const poemKeywords = [
       "poem",
       "poetry",
@@ -471,18 +387,14 @@ abstract class BaseAIModel implements IAIModel {
     );
   }
 
-  // Extract potential keywords from a message
   private extractKeywords(message: string): string[] {
-    // Remove common words and punctuation
     const cleanedMessage = message
       .replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, " ")
       .replace(/\s{2,}/g, " ")
       .toLowerCase();
 
-    // Split into words
     const words = cleanedMessage.split(" ");
 
-    // Filter out common words
     const commonWords = [
       "the",
       "a",
@@ -541,18 +453,15 @@ abstract class BaseAIModel implements IAIModel {
       "them",
     ];
 
-    // Return words that are not common and are at least 3 characters
     return words.filter(
       (word) => !commonWords.includes(word) && word.length >= 3
     );
   }
 
-  // Convert TMessage array to AIMessage array for API
   protected async conversationToMessages(
     history: TMessage[],
     language: "en-US" | "zh-CN"
   ): Promise<AIMessage[]> {
-    // Start with a system message
     const messages: AIMessage[] = [
       {
         role: "system",
@@ -560,38 +469,25 @@ abstract class BaseAIModel implements IAIModel {
       },
     ];
 
-    // Always include the poem database context if available
     const poemDatabaseContext = AIFactory.getPoemDatabaseContext();
     if (poemDatabaseContext) {
-      console.log("Adding poem database context to conversation:");
-      console.log("Context length:", poemDatabaseContext.length);
       messages.push({
         role: "system",
         content: poemDatabaseContext,
       });
-    } else {
-      console.warn("No poem database context available for this conversation");
     }
 
-    // Get poem context based on the most recent user message
     const lastUserMessage =
       history.find((msg) => !msg.isAIResponse)?.message?.content || "";
     const poemContext = await this.getRelevantPoemData(lastUserMessage);
 
-    // Add poem context if available
     if (poemContext) {
-      console.log("Adding specific poem context based on query:");
-      console.log("Query:", lastUserMessage);
-      console.log("Context length:", poemContext.length);
       messages.push({
         role: "system",
         content: poemContext,
       });
-    } else {
-      console.log("No specific poem context found for query:", lastUserMessage);
     }
 
-    // Add messages in chronological order (oldest first)
     history.reverse().forEach((msg) => {
       messages.push({
         role: msg.isAIResponse ? "assistant" : "user",
@@ -602,24 +498,18 @@ abstract class BaseAIModel implements IAIModel {
     return messages;
   }
 
-  // Process a new message and generate a response
   async processMessage(
     messageData: Omit<TMessage, "_id">,
     language: "en-US" | "zh-CN"
   ): Promise<TMessageDocument> {
-    // 1. Save the user message to database
     const savedUserMessage = await this.saveMessage(messageData);
 
-    // 2. Get conversation history
     const history = await this.getConversationHistory(messageData.chatId);
 
-    // 3. Convert to AI messages format with poem context
     const messages = await this.conversationToMessages(history, language);
 
-    // 4. Generate AI response
     const aiResponseContent = await this.generateCompletion(messages);
 
-    // 5. Create AI response message
     const aiResponseData: Omit<TMessage, "_id"> = {
       userId: messageData.userId,
       user: {
@@ -636,29 +526,23 @@ abstract class BaseAIModel implements IAIModel {
       replyToMessageId: savedUserMessage._id?.toString(),
     };
 
-    // 6. Save AI response to database
     return await this.saveMessage(aiResponseData);
   }
 
-  // Process a message and stream the response
   async *processMessageStream(
     messageData: Omit<TMessage, "_id">,
     language?: "en-US" | "zh-CN"
   ): AsyncGenerator<Partial<TMessage>, TMessageDocument, unknown> {
     try {
-      // 1. Save the user message to database
       const savedUserMessage = await this.saveMessage(messageData);
 
-      // 2. Get conversation history
       const history = await this.getConversationHistory(messageData.chatId);
 
-      // 3. Convert to AI messages format with poem context
       const messages = await this.conversationToMessages(
         history,
         language as "zh-CN" | "en-US"
       );
 
-      // 4. Create initial AI response message with streaming flag
       const aiResponseData: Omit<TMessage, "_id"> = {
         userId: messageData.userId,
         user: {
@@ -667,7 +551,7 @@ abstract class BaseAIModel implements IAIModel {
         },
         chatId: messageData.chatId,
         message: {
-          content: "I'm thinking...", // Initial non-empty content
+          content: "I'm thinking...",
           contentType: "text",
         },
         isAIResponse: true,
@@ -676,10 +560,8 @@ abstract class BaseAIModel implements IAIModel {
         replyToMessageId: savedUserMessage._id?.toString(),
       };
 
-      // 5. Save initial AI response
       const savedAiMessage = await this.saveMessage(aiResponseData);
 
-      // 6. Stream response content
       let accumulatedContent = "";
 
       try {
@@ -688,7 +570,6 @@ abstract class BaseAIModel implements IAIModel {
         )) {
           accumulatedContent += contentChunk;
 
-          // Yield partial update for streaming to client
           yield {
             _id: savedAiMessage._id,
             message: {
@@ -699,9 +580,7 @@ abstract class BaseAIModel implements IAIModel {
           };
         }
 
-        // 7. Update the saved message with complete content and remove streaming flag
         if (accumulatedContent.length === 0) {
-          // If no content was generated, use a default message
           accumulatedContent =
             "I'm sorry, I couldn't generate a response. Please try again.";
         }
@@ -712,7 +591,6 @@ abstract class BaseAIModel implements IAIModel {
 
         return savedAiMessage;
       } catch (error) {
-        // If streaming fails, update the message with an error
         savedAiMessage.message.content =
           "I apologize, but I encountered an error while generating a response.";
         savedAiMessage.isStreaming = false;
@@ -721,73 +599,87 @@ abstract class BaseAIModel implements IAIModel {
         throw error;
       }
     } catch (error) {
-      console.error("Error in processMessageStream:", error);
       throw error;
     }
   }
 
-  // Generate a completion from messages
   async generateCompletion(
     messages: AIMessage[],
     options: AIModelOptions = {}
   ): Promise<string> {
-    // Changed default maxTokens from 2000 to 4000 to allow longer responses
-    const { maxTokens = 4000, temperature = 0.7, ...rest } = options;
-    const response = await this.client.chat.completions.create({
-      model: this.model,
-      messages,
-      max_tokens: maxTokens,
-      temperature,
-      ...rest, // ensure no stop parameter is inadvertently provided
+    const { maxTokens = 4000, temperature = 0.7 } = options;
+
+    const response = await fetch(`${this.baseURL}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${this.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: this.model,
+        messages,
+        max_tokens: maxTokens,
+        temperature,
+      }),
     });
-    return response.choices[0]?.message?.content || "";
+
+    const data = await response.json();
+    return data.choices?.[0]?.message?.content || "";
   }
 
-  // Stream a completion from messages
   async *generateCompletionStream(
     messages: AIMessage[],
     options: AIModelOptions = {}
   ): AsyncGenerator<string, void, unknown> {
-    // Changed default maxTokens from 2000 to 4000 to support longer streams
-    const { maxTokens = 4000, temperature = 0.7, ...rest } = options;
-    const stream = (await this.client.chat.completions.create({
-      model: this.model,
-      messages,
-      max_tokens: maxTokens,
-      temperature,
-      stream: true,
-      ...rest, // ensure no stop sequence is set
-    })) as unknown as AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>;
+    const { maxTokens = 4000, temperature = 0.7 } = options;
 
-    for await (const chunk of stream) {
-      const content = chunk.choices[0]?.delta?.content;
-      if (content) {
-        yield content;
+    const response = await fetch(`${this.baseURL}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${this.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: this.model,
+        messages,
+        max_tokens: maxTokens,
+        temperature,
+        stream: true,
+      }),
+    });
+
+    const reader = response.body?.getReader();
+    if (!reader) return;
+
+    const decoder = new TextDecoder();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const chunk = decoder.decode(value);
+      const lines = chunk.split("\n").filter(Boolean);
+
+      for (const line of lines) {
+        if (line.startsWith("data: ")) {
+          const data = JSON.parse(line.slice(6));
+          const content = data.choices?.[0]?.delta?.content;
+          if (content) yield content;
+        }
       }
     }
   }
 
-  // Get all poems from the database when no specific query is found
-  // but we want to provide information about available poems
   protected async getAllPoemSummaries(): Promise<string> {
     try {
-      // Try to use the new getAllPoemSummaries function from poemTraining.ts
       const poemSummaries = await getAllPoemSummaries();
 
-      console.log(
-        `Found ${poemSummaries.length} poems for summary using new database function`
-      );
-
       if (poemSummaries.length === 0) {
-        // Fall back to old method if the new one returns empty results
         return this.fallbackGetAllPoemSummaries();
       }
 
-      // Format as a list for the AI to reference
       let poemList = "POEM DATABASE CONTENTS:\n\n";
       poemList += `I have access to ${poemSummaries.length} Chinese poems. Here are some examples:\n\n`;
 
-      // Group by dynasty
       const poemsByDynasty: Record<
         string,
         { title: string; author: string }[]
@@ -804,7 +696,6 @@ abstract class BaseAIModel implements IAIModel {
         });
       });
 
-      // List poems by dynasty, showing up to 5 poems per dynasty
       for (const [dynasty, dynastyPoems] of Object.entries(poemsByDynasty)) {
         poemList += `${dynasty} (${dynastyPoems.length} poems):\n`;
         dynastyPoems.slice(0, 5).forEach((poem) => {
@@ -818,37 +709,24 @@ abstract class BaseAIModel implements IAIModel {
 
       return poemList;
     } catch (error) {
-      console.error("Error getting all poem summaries:", error);
       return this.fallbackGetAllPoemSummaries();
     }
   }
 
-  // Fallback method to get poem summaries directly from the model
   private async fallbackGetAllPoemSummaries(): Promise<string> {
     try {
-      // Try to get all poems with a limit to prevent context explosion
-      console.log(
-        "Using fallback method to get summary of all poems in database"
-      );
-
       const poems = await this.poemModel
         .find({}, "title author dynasty")
         .limit(20)
         .lean();
 
-      console.log(
-        `Found ${poems.length} poems for summary with fallback method`
-      );
-
       if (poems.length === 0) {
         return "There are no poems in the database.";
       }
 
-      // Format as a list for the AI to reference
       let poemList = "POEM DATABASE CONTENTS:\n\n";
       poemList += `I have access to ${poems.length} Chinese poems. Here are the titles:\n\n`;
 
-      // Group by dynasty
       const poemsByDynasty: Record<
         string,
         { title: string; author: string }[]
@@ -864,7 +742,6 @@ abstract class BaseAIModel implements IAIModel {
         });
       });
 
-      // List poems by dynasty
       for (const [dynasty, dynastyPoems] of Object.entries(poemsByDynasty)) {
         poemList += `${dynasty}:\n`;
         dynastyPoems.forEach((poem) => {
@@ -875,16 +752,12 @@ abstract class BaseAIModel implements IAIModel {
 
       return poemList;
     } catch (error) {
-      console.error(
-        "Error getting all poem summaries with fallback method:",
-        error
-      );
       return "I'm having trouble accessing the poem database at the moment.";
     }
   }
 }
 
-// Keep only DeepSeek model implementation
+// DeepSeek model implementation
 class DeepseekModel extends BaseAIModel {
   constructor() {
     super(
@@ -895,100 +768,20 @@ class DeepseekModel extends BaseAIModel {
   }
 }
 
-// Simplify AI Factory class
+// AI Factory class
 export class AIFactory {
-  // Store poem database context for reuse
   private static poemDatabaseContext: string | null = null;
 
-  // Initialize the AI Factory with poem database context
   static async initialize(): Promise<void> {
     try {
       if (process.env.POETRY_TRAINING === "true") {
-        console.log("Initializing AI Factory with poem database context...");
-        console.log(
-          "Environment variables: POETRY_TRAINING =",
-          process.env.POETRY_TRAINING
-        );
-
-        // Check other collections for poems
-        if (
-          mongoose.connection &&
-          mongoose.connection.readyState === 1 &&
-          mongoose.connection.db
-        ) {
-          // Get all collections
-          try {
-            const collections = await mongoose.connection.db
-              .listCollections()
-              .toArray();
-            console.log("All collections in database:");
-            collections.forEach((coll) => console.log(`- ${coll.name}`));
-
-            // Check each collection for poem-like data
-            for (const coll of collections) {
-              try {
-                // Get a sample document to inspect
-                const sample = await mongoose.connection.db
-                  .collection(coll.name)
-                  .findOne(
-                    {},
-                    { projection: { title: 1, author: 1, dynasty: 1 } }
-                  );
-
-                if (
-                  sample &&
-                  (sample.title || sample.author || sample.dynasty)
-                ) {
-                  const count = await mongoose.connection.db
-                    .collection(coll.name)
-                    .countDocuments();
-                  console.log(
-                    `Found potential poem collection: ${coll.name} with ${count} documents`
-                  );
-                  console.log(
-                    `Sample document:`,
-                    JSON.stringify(sample, null, 2)
-                  );
-                }
-              } catch (err) {
-                const error = err as Error;
-                console.log(
-                  `Error inspecting collection ${coll.name}:`,
-                  error.message
-                );
-              }
-            }
-          } catch (error) {
-            console.error("Error listing collections:", error);
-          }
-        }
-
         this.poemDatabaseContext = await generatePoemDatabaseContext();
-
-        console.log("Poem database context generated:");
-        console.log("-----------------------------");
-        console.log(this.poemDatabaseContext);
-        console.log("-----------------------------");
-
-        if (this.poemDatabaseContext && this.poemDatabaseContext.length > 0) {
-          console.log(
-            "AI Factory initialized successfully with poem database context"
-          );
-        } else {
-          console.warn("Poem database context is empty or null");
-        }
-      } else {
-        console.log(
-          "Poetry training is not enabled. Set POETRY_TRAINING=true to enable it."
-        );
       }
     } catch (error) {
-      console.error("Error initializing AI Factory:", error);
       this.poemDatabaseContext = null;
     }
   }
 
-  // Get the poem database context
   static getPoemDatabaseContext(): string {
     return this.poemDatabaseContext || "";
   }

@@ -34,7 +34,6 @@
     "mongodb": "^6.15.0",
     "mongoose": "^8.12.1",
     "node-fetch": "^2.7.0",
-    "openai": "^4.87.3",
     "pinyin-pro": "^3.26.0",
     "zod": "^3.24.2"
   },

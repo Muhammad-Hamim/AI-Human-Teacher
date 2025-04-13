@@ -4,13 +4,11 @@ import { createServer } from "http";
 import app from "./app";
 import config from "./app/config";
 import dbConnect from "./app/utils/dbConnect";
-import { Server } from "socket.io";
-import { initAIServices } from "./app/AI";
 import path from "path";
 import express from "express";
 import ServerConfig from "./app/config/server.config";
 import SpeechService from "./app/AI/services/speech.service";
-import { AIFactory } from "./app/AI/aifactory/AIFactory";
+import { AIFactory, initAIServices } from "./app/AI";
 
 async function main() {
   try {
@@ -18,7 +16,6 @@ async function main() {
     await dbConnect();
 
     // Initialize the AI Factory with poem database regardless of environment variable
-    // This ensures poem access works even if the variable isn't set
     process.env.POETRY_TRAINING = "true";
     console.log("Explicitly enabling poetry training");
     await AIFactory.initialize();
@@ -28,14 +25,6 @@ async function main() {
 
     // Create HTTP server
     const server = createServer(app);
-
-    // Create Socket.IO server
-    const io = new Server(server, {
-      cors: {
-        origin: ["http://localhost:5173"],
-        credentials: true,
-      },
-    });
 
     // Start server
     server.listen(config.port, () => {
@@ -49,11 +38,11 @@ async function main() {
       );
       console.log(`📢 Server accessible at: ${serverBaseUrl}`);
 
+      // Initialize AI services
+      initAIServices(server);
+
       // Set server URL for audio files
       SpeechService.setServerBaseUrl(serverBaseUrl);
-
-      // Initialize AI services
-      initAIServices(server, io);
     });
 
     // Handle server errors

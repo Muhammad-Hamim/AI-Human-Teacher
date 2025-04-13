@@ -24,14 +24,8 @@ export {
 /**
  * Initialize all AI services
  * @param server HTTP server instance
- * @param io Socket.io server instance
  */
-export const initAIServices = (server: any, io: any) => {
-  // Initialize voice socket if the method exists
-  if (VoiceService.initVoiceSocket) {
-    VoiceService.initVoiceSocket(io);
-  }
-
+export const initAIServices = (server: any) => {
   // Get the server base URL from environment variables or use a default
   let serverBaseUrl = process.env.SERVER_URL || "";
 
@@ -60,10 +54,6 @@ export const initAIServices = (server: any, io: any) => {
   SpeechService.loadVoices().catch((err) => {
     console.error("Failed to load TTS voices:", err);
   });
-
-  // Routes are now mounted in the main routes file
-  // If you need to add any additional AI-specific features,
-  // you can initialize them here
 
   console.log("AI services initialized");
 };
