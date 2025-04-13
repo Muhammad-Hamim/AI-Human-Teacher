@@ -1,360 +1,203 @@
-## Voice Interaction with AI
+# AI Human Teacher - Interactive Chinese Learning Platform
 
-The application includes a Socket.io-based voice interaction feature that allows real-time voice conversations with the AI.
+## 作品信息 Project Information
 
-### How It Works
+- 作品编号 Project ID: (待分配 To be assigned)
+- 作品名称 Project Name: AI Human Teacher - Interactive Chinese Learning Platform
+- 作品大类 Main Category: 软件应用与开发 Software Application and Development
+- 作品小类 Sub-category: 智能教育 Intelligent Education
 
-1. The server uses Socket.io to maintain persistent, bi-directional connections between the client and server
-2. The user sends text (transcribed from speech on the client-side)
-3. The AI responds with text that can be converted to speech on the client-side
-4. The connection remains open throughout the conversation
+## 作品简介 Project Overview
 
-### Socket.io Events
+AI Human Teacher 是一个创新的中文学习平台，利用人工智能技术为学习者提供沉浸式的语言学习体验。平台融合了实时语音对话、诗词学习、文化探索等功能，通过人工智能助教实现个性化学习指导。系统支持中英双语切换，并提供实时语音评测与反馈，让学习更加自然和高效。
 
-#### Client to Server:
+AI Human Teacher is an innovative Chinese learning platform that leverages artificial intelligence(**DeepSeek**) to provide an immersive language learning experience. The platform integrates real-time voice conversations, poetry learning, cultural exploration, and other features, delivering personalized learning guidance through an AI teaching assistant. The system supports bilingual switching between Chinese and English, providing real-time pronunciation assessment and feedback for more natural and efficient learning.
 
-- `start_session`: Initialize a new voice conversation
+## 创新描述 Innovation Highlights
 
-  ```javascript
-  socket.emit("start_session", {
-    sessionId: "unique-session-id",
-    userId: "optional-user-id",
-    model: "deepseek-r1", // optional
-    maxTokens: 500, // optional
-  });
-  ```
+1. **实时 AI 语音交互 Real-time AI Voice Interaction**
 
-- `user_message`: Send a user message to the AI
+   - WebRTC 实现的低延迟语音对话 Low-latency voice dialogue using WebRTC
+   - Edge TTS 提供的自然语音合成 Natural voice synthesis powered by Edge TTS
+   - 实时语音评测和反馈 Real-time pronunciation assessment and feedback
 
-  ```javascript
-  socket.emit("user_message", {
-    sessionId: "unique-session-id",
-    message: "Hello, how can you help me today?",
-  });
-  ```
+2. **智能诗词教学 Intelligent Poetry Teaching**
 
-- `end_session`: End the voice conversation
-  ```javascript
-  socket.emit("end_session", {
-    sessionId: "unique-session-id",
-  });
-  ```
+   - 深度分析诗词内容 Deep analysis of poetry content
+   - 互动式朗读练习 Interactive reading practice
+   - 文化背景知识讲解 Cultural background explanation
 
-#### Server to Client:
+3. **个性化学习体验 Personalized Learning Experience**
+   - 自适应学习路径 Adaptive learning paths
+   - 多模态交互界面 Multi-modal interaction interface
 
-- `session_started`: Confirmation that session has started
-- `ai_message_chunk`: Chunked AI response for real-time streaming
-- `ai_message_complete`: Signals that the AI response is complete
-- `session_ended`: Confirmation that session has ended
-- `error`: Error message
+## 技术架构 Technical Architecture
 
-### Frontend Implementation Example
+### 前端技术栈 Frontend Stack
 
-```javascript
-import { io } from "socket.io-client";
+- React 19.0.0 + TypeScript
+- Redux Toolkit 状态管理
+- Socket.io-client 实时通信
+- TailwindCSS + Radix UI 界面设计
+- Framer Motion 动画效果
+- WebRTC API 音视频处理
 
-// Connect to the voice socket
-const socket = io("http://your-server-url/voice");
+### 后端技术栈 Backend Stack
 
-// Session state
-let sessionId = null;
-let isAISpeaking = false;
+- Node.js + Express
+- TypeScript
+- MongoDB 数据库
+- Socket.io WebRTC 信令服务
+- Edge TTS 语音合成
+- DeepSeek AI 模型集成
 
-// Speech synthesis setup
-const synth = window.speechSynthesis;
+## 系统要求 System Requirements
 
-// Speech recognition setup (using Web Speech API)
-const recognition = new webkitSpeechRecognition();
-recognition.continuous = false;
-recognition.interimResults = false;
-recognition.lang = "en-US";
+### 开发环境 Development Environment
 
-// Handle socket connection
-socket.on("connect", () => {
-  console.log("Connected to voice server");
+- Node.js >= 16.0.0
+- MongoDB >= 6.0
+- NPM or Yarn
+- Modern web browser with WebRTC support
 
-  // Start a new session
-  sessionId = "session-" + Date.now();
-  socket.emit("start_session", { sessionId });
-});
+### 运行平台 Runtime Platform
 
-// Handle session started
-socket.on("session_started", (data) => {
-  console.log("Session started:", data);
-  // The AI will send an initial greeting automatically
-});
+- 支持 WebRTC 的现代浏览器 Modern browsers with WebRTC support
+  - Google Chrome (推荐 Recommended)
+  - Microsoft Edge
+  - Safari
 
-// Handle AI message chunks
-socket.on("ai_message_chunk", (data) => {
-  // Append to UI
-  appendMessage("ai", data.content);
+## 部署说明 Deployment Instructions
 
-  // If not already speaking, start TTS
-  if (!isAISpeaking) {
-    speakText(data.content);
-    isAISpeaking = true;
-  }
-});
+### 克隆代码库 Clone the Repository
 
-// Handle AI message complete
-socket.on("ai_message_complete", () => {
-  isAISpeaking = false;
+## Backend
 
-  // Start listening for user input after AI is done
-  setTimeout(() => {
-    startListening();
-  }, 500);
-});
-
-// Handle errors
-socket.on("error", (data) => {
-  console.error("Voice error:", data);
-});
-
-// Handle disconnection
-socket.on("disconnect", () => {
-  console.log("Disconnected from voice server");
-});
-
-// Function to start listening for user speech
-function startListening() {
-  recognition.start();
-}
-
-// Handle speech recognition results
-recognition.onresult = (event) => {
-  const transcript = event.results[0][0].transcript;
-
-  // Append to UI
-  appendMessage("user", transcript);
-
-  // Send to server
-  socket.emit("user_message", {
-    sessionId,
-    message: transcript,
-  });
-};
-
-// Function to speak text using TTS
-function speakText(text) {
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = "en-US";
-  utterance.rate = 1.0;
-  synth.speak(utterance);
-}
-
-// Function to append message to UI
-function appendMessage(sender, text) {
-  // Implementation depends on your UI
-  console.log(`${sender}: ${text}`);
-}
-
-// Function to end the voice session
-function endVoiceSession() {
-  socket.emit("end_session", { sessionId });
-  recognition.stop();
-  synth.cancel();
-}
-
-// Call endVoiceSession when user wants to end the conversation
-document
-  .getElementById("end-call-button")
-  .addEventListener("click", endVoiceSession);
+```bash
+git clone --branch server-side https://github.com/Muhammad-Hamim/AI-Human-Teacher.git
 ```
 
-## Error Handling
+**After cloning the repository the project folder name will be appear as `AI-Human-Teacher`, it is recommended to rename the folder name otherwise you need to clone frontend and backend code into different folder.**
 
-The API uses a comprehensive error handling system with several components:
+### 安装依赖 Install Dependencies
 
-1. **AppError Class**: Custom error class that extends the native Error class to include HTTP status codes.
+#### 后端 Backend
 
-2. **Global Error Handler**: Middleware that catches and formats all errors thrown in the application, providing consistent error responses.
-
-3. **Stream Error Handler**: Specialized middleware to handle errors in streaming endpoints, formatting errors as Server-Sent Events.
-
-4. **catchAsync Utility**: A wrapper function that catches async errors and passes them to the next middleware in the chain.
-
-### Error Handling in AI Chat Service
-
-The AI chat service implements robust error handling:
-
-- **Input Validation**: Validates request data before processing messages.
-- **Graceful Streaming Errors**: Errors during streaming are sent to the client as formatted SSE events.
-- **Consistent Error Format**: All errors follow the same format for easier debugging and client handling.
-- **Failed Message Recovery**: If message generation fails, the system will save an appropriate error message instead of failing silently.
-
-Example error response:
-
-```json
-{
-  "success": false,
-  "message": "Invalid request data",
-  "errorSources": [
-    {
-      "path": "",
-      "message": "Invalid request data"
-    }
-  ]
-}
+```bash
+cd <your project folder>
+npm install
 ```
 
-For streaming endpoints, errors are sent as SSE events:
+### 安装 Edge TTS 依赖 Install Edge TTS Dependency
 
-```
-data: {"success":false,"error":true,"statusCode":500,"message":"Stream processing failed"}
+在 `<your project folder>` 目录下运行以下命令安装 Edge TTS 依赖：
 
-data: [DONE]
-```
-
-## WebRTC Voice Communication with AI
-
-This project includes a WebRTC-based voice communication system that allows real-time voice conversations with the AI assistant. The system uses:
-
-1. **WebRTC** for peer-to-peer audio transmission
-2. **Socket.io** for signaling
-3. **Web Speech API** for speech recognition and synthesis
-
-### How It Works
-
-1. The client initiates a voice session with the AI by clicking the microphone button
-2. A WebRTC connection is established for high-quality audio transmission
-3. The user's speech is transcribed using the Speech Recognition API
-4. Transcribed text is sent to the AI through the same conversation context as text chat
-5. The AI generates a response using the same models and conversation history
-6. The response is converted to speech using the Speech Synthesis API
-7. The entire conversation is saved in the database like regular text conversations
-
-### Using Voice Mode
-
-To use the voice communication feature:
-
-1. Start a chat or open an existing conversation
-2. Click the microphone icon in the bottom right corner
-3. Grant microphone permissions when prompted
-4. Click "Start Call" in the voice modal
-5. Speak naturally - the AI will respond through voice
-6. Use the mute button to temporarily disable your microphone
-7. Click the phone button to end the call
-
-### Key Features
-
-- **Real-time Communication**: Low-latency audio transmission using WebRTC
-- **Session Management**: Secure voice sessions with timeout handling
-- **Conversation Context**: Voice interactions maintain the same conversation context as text chat
-- **Accessibility**: Voice input/output for users who prefer speaking over typing
-- **Fallback Mechanisms**: Text-based UI shows transcriptions and responses even when audio fails
-
-### Technical Implementation
-
-The implementation uses a hybrid approach:
-
-- Socket.io for signaling and session management
-- WebRTC for peer connection and audio transmission
-- Web Speech API for client-side voice processing
-- The same AI backend handles both text and voice requests
-
-## Models
-
-The application now uses Qwen2.5-VL 72B Instruct as the default AI model. This model provides better text generation capabilities and is used through the OpenRouter API.
-
-The following environment variables are used for the Qwen2 model:
-
-```
-QWEN2_5_VL_72B_API_KEY=your-api-key-here
-QWEN2_5_VL_72B_MODEL_NAME=qwen/qwen2.5-vl-72b-instruct:free
+```bash
+install_edgetts.bat
 ```
 
-The application still supports OpenAI and DeepSeek models, which can be selected by including "gpt" or "deepseek" in the model name parameter.
+### 配置环境变量 Configure Environment Variables
 
-## Testing
+在 `<your project folder>` 目录下创建 `.env` 文件，并添加以下内容：
 
-You can test the Qwen2 model using the provided test script:
-
-```
-test-qwen.bat
-```
-
-## Training the AI with the Poem Database
-
-This application includes functionality to train the AI with your poem database, allowing it to respond with detailed information about poems, authors, and dynasties.
-
-### Setting Up OpenRouter API Integration
-
-1. Create an account on [OpenRouter](https://openrouter.ai/) if you don't already have one
-2. Get your API key from the OpenRouter dashboard
-3. Add your OpenRouter API key to the `.env` file:
-
-```
-AI_API_KEY=your_api_key_here
-QWEN2_API_KEY=your_api_key_here
+```env
+NODE_ENV=development
+PORT=5000
+BCRYPT_SALT_ROUNDS=12
+DATABASE_URL=mongodb+srv://<username>:<password>@cluster0.mongodb.net/ai-human-teacher?retryWrites=true&w=majority
+JWT_ACCESS_SECRET=<your_access_secret>
+JWT_REFRESH_SECRET=<your_refresh_secret>
+JWT_ACCESS_EXPIRES_IN=2h
+JWT_REFRESH_EXPIRES_IN=360d
+CLOUDINARY_COULD_NAME=<your_cloudinary_name>
+CLOUDINARY_API_KEY=<your_cloudinary_api_key>
+CLOUDINARY_API_SECRET=<your_cloudinary_api_secret>
+AI_API_KEY=<your_ai_api_key>
+AI_BASE_URL=https://openrouter.ai/api/v1
+CLIENT_URL=http://localhost:5173
 ```
 
-### Training Process
+### 启动服务 Start the Services
 
-1. Make sure your MongoDB database contains poem data with the correct schema (see `src/app/Models/poem/poem.interface.ts` for the schema)
-2. Run the training script:
+#### 启动后端服务 Start Backend
 
-```
-test-poetry-train.bat
-```
-
-The training script will:
-
-- Connect to your MongoDB database
-- Index the poem collection for efficient searching
-- Create special indexes for quick lookups by title, author, and dynasty
-- Generate a context file that the AI can use to understand the poem database
-
-### Testing the AI
-
-Once the training is complete, you can test if the AI can access your poem database:
-
-1. Run the single poem test script:
-
-```
-test-single-poem.bat
+```bash
+npm run start:dev
 ```
 
-2. This will randomly select a poem from your database and verify that it's accessible to the AI
+**After successfully setup backend now setup and run frontend**
 
-3. Start the server and test the AI by asking questions about poems:
+## Frontend
 
+### 克隆代码库 Clone the Repository
+
+```bash
+git clone https://github.com/Muhammad-Hamim/AI-Human-Teacher.git
 ```
+
+**After cloning the repository the project folder name will be appear as `AI-Human-Teacher`, it is recommended to rename the folder name otherwise you need to clone frontend and backend code into different folder.**
+
+### 安装依赖 Install Dependencies
+
+#### 前端 Frontend
+
+```bash
+cd <your project folder>
+npm install
+```
+
+#### 启动前端服务 Start Frontend
+
+```bash
 npm run dev
 ```
 
-### Example Questions for Testing
+### 访问应用 Access the Application
 
-Once the server is running, you can test the AI's knowledge by asking questions like:
-
-- "Can you tell me about a famous Tang dynasty poem?"
-- "Who is Li Bai and what poems did he write?"
-- "Explain the meaning of [poem title]"
-- "Can you translate [Chinese poem line] into English?"
-- "What is the historical context of [poem title]?"
-
-### How It Works
-
-The AI has been configured to:
-
-1. Understand when a query is related to Chinese poetry
-2. Search the poem database for relevant content
-3. Format the poem data in a way that helps the AI provide accurate responses
-4. Include detailed information about the poem's meaning, historical context, and cultural significance
-
-The system uses a combination of:
-
-- MongoDB text indexing for efficient searches
-- Natural language processing to identify poetry-related queries
-- Context injection to provide the AI with relevant poem data
-- Custom system prompts to guide the AI's responses
-
-### Adding More Poems
-
-To add more poems to the database, you can create API endpoints or database scripts. Each poem should follow the schema defined in `src/app/Models/poem/poem.interface.ts`.
-
-After adding new poems, run the training script again to update the AI's knowledge:
+打开浏览器并访问：
 
 ```
-test-poetry-train.bat
+http://localhost:5173
 ```
+
+## 特别说明 Special Notes
+
+1. **地图来源**：本作品中如有涉及疆域的地图，均来源于公开授权的地图资源，并标注有效的地图审图号。
+2. **前期基础**：本作品基于现有的 AI 技术和 WebRTC 技术开发，参赛的主要工作包括语音交互系统的实现、诗词学习平台的设计与开发。
+3. **人工智能辅助工具**：本作品使用了以下人工智能辅助工具：
+   - DeepSeek AI 模型：提供智能对话和诗词分析功能。
+   - Edge TTS：实现高质量的语音合成功能。
+
+## 作者及其分工比例 Authors and Contribution
+
+| 项目     | 姓名 1 | 姓名 2 | 姓名 3 | 姓名 4 | 姓名 5 |
+| -------- | ------ | ------ | ------ | ------ | ------ |
+| 组织协调 | 20%    | 20%    | 20%    | 20%    | 20%    |
+| 作品创意 | 25%    | 25%    | 25%    | 15%    | 10%    |
+| 竞品分析 | 20%    | 20%    | 20%    | 20%    | 20%    |
+| 方案设计 | 30%    | 30%    | 20%    | 10%    | 10%    |
+| 技术实现 | 40%    | 30%    | 20%    | 5%     | 5%     |
+| 文献阅读 | 10%    | 10%    | 10%    | 10%    | 10%    |
+| 测试分析 | 20%    | 20%    | 20%    | 20%    | 20%    |
+
+## 开发制作平台 Development Platform
+
+- **操作系统**：Windows
+- **开发工具**：Node.js, React, MongoDB, TypeScript, WebRTC
+
+## 提交内容 Submission Contents
+
+1. **素材压缩包**：包含所有相关素材。
+2. **报告文档**：详细的设计与开发文档。
+3. **演示视频**：展示作品功能的视频。
+4. **PPT**：答辩演示文档。
+5. **源代码**：完整的前后端代码。
+6. **部署文件**：包含安装和运行说明的文件。
+
+## 参考文献 References
+
+1. WebRTC Standards: https://webrtc.org/
+2. Edge TTS Documentation: https://learn.microsoft.com/en-us/azure/cognitive-services/speech-service/
+3. DeepSeek AI Documentation: https://platform.deepseek.com/docs
+4. React Documentation: https://react.dev/
+5. Socket.IO Documentation: https://socket.io/docs/v4/
