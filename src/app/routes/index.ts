@@ -8,6 +8,7 @@ import { VocabularyRouter } from "../Models/vocabulary/vocabulary.route";
 import { ChatRoutes, PoemNarrationRoutes, PoemInsightsRoutes } from "../AI";
 import VoiceRoutes from "../AI/voice/voice.route";
 import TTSTestRoutes from "../AI/edgetts/tts-test.route";
+import { aiAnalyzeRoutes } from "../AI/aiAnalyze";
 
 const router = Router();
 
@@ -55,6 +56,10 @@ const moduleRoutes = [
   {
     path: "/ai/poem-insights",
     route: PoemInsightsRoutes,
+  },
+  {
+    path: "/ai/poem-analysis",
+    route: aiAnalyzeRoutes,
   },
 ];
 

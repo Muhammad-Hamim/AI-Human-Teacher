@@ -533,7 +533,6 @@ abstract class BaseAIModel implements IAIModel {
     messageData: Omit<TMessage, "_id">,
     language?: "en-US" | "zh-CN"
   ): AsyncGenerator<Partial<TMessage>, TMessageDocument, unknown> {
-    try {
       const savedUserMessage = await this.saveMessage(messageData);
 
       const history = await this.getConversationHistory(messageData.chatId);
@@ -598,9 +597,7 @@ abstract class BaseAIModel implements IAIModel {
 
         throw error;
       }
-    } catch (error) {
-      throw error;
-    }
+   
   }
 
   async generateCompletion(
