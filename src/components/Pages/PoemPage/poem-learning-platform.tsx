@@ -229,7 +229,7 @@ export default function PoemLearningPlatform({
         </TabsContent>
 
         <TabsContent value="ai" className="m-0">
-          <AiAnalysis poem={poem} />
+          <AiAnalysis poemId={poem._id} />
           {showAiFeatures.knowledgeBase && <KnowledgeBase poem={poem} />}
         </TabsContent>
 

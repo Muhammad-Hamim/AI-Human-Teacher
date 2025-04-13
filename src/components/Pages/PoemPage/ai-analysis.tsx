@@ -1,6 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   Card,
   CardContent,
@@ -25,22 +23,61 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { motion } from "framer-motion";
 import MarkdownRenderer from "@/components/common/MarkdownRenderer";
+import { useGetPoemAnalysisQuery } from "@/redux/features/interactivePoem/deepSeekApi";
 
-interface AiAnalysisProps {
-  poem: any;
-}
-
-// Default data to use if the poem doesn't have AI analysis fields
-const defaultAnalysis = {
-  emotionalTone:
-    "This poem conveys a rich emotional journey that resonates across cultures and time periods.",
-  literaryTechniques:
-    "The poem employs several powerful literary techniques including vivid imagery and metaphor.",
-  modernRelevance:
-    "Though ancient in origin, this poem speaks to universal human experiences still relevant today.",
+type ApiResponse = {
+  status: string;
+  data: {
+    aiPoweredAnalysis: AiPoweredAnalysis;
+  };
 };
 
-export default function AiAnalysis({ poem }: AiAnalysisProps) {
+interface AiPoweredAnalysis {
+  emotionalTone: string;
+  literaryTechniques: string;
+  modernRelevance: string;
+  rhythmPattern: {
+    structure: string;
+    lines: Array<{
+      text: string;
+      tones: string[];
+      annotation: string;
+    }>;
+    rules: string[];
+  };
+  emotionalJourney: Array<{
+    name: string;
+    lines: string;
+    intensity: number;
+    color: string;
+    explanation: string;
+  }>;
+  literaryDevices: Array<{
+    name: string;
+    description: string;
+    color: string;
+    lines: string[];
+  }>;
+  structure: {
+    form: string;
+    characteristics: string[];
+  };
+  historicalComparisons: Array<{
+    aspect: string;
+    then: string;
+    now: string;
+  }>;
+  culturalSignificance: string;
+}
+
+// Default data to match new format style
+const defaultAnalysis = {
+  emotionalTone: "诗歌通过静谧的意境与历史追忆，展现深沉的文化思考。",
+  literaryTechniques: "运用意象叠加与留白艺术，构建多维的诗歌空间。",
+  modernRelevance: "在当代语境下，诗歌提供了关于文化传承的深刻思考。",
+};
+
+export default function AiAnalysis({ poemId }: { poemId: string }) {
   const [activeTab, setActiveTab] = useState("emotional");
   const [aiQuestion, setAiQuestion] = useState("");
   const [aiConversation, setAiConversation] = useState<
@@ -48,47 +85,60 @@ export default function AiAnalysis({ poem }: AiAnalysisProps) {
   >([]);
   const [isAiThinking, setIsAiThinking] = useState(false);
 
-  // Get AI analysis data from poem or use defaults
-  const analysis = {
-    emotionalTone:
-      poem?.aiPoweredAnalysis?.emotionalTone || defaultAnalysis.emotionalTone,
-    literaryTechniques:
-      poem?.aiPoweredAnalysis?.literaryTechniques ||
-      defaultAnalysis.literaryTechniques,
-    modernRelevance:
-      poem?.aiPoweredAnalysis?.modernRelevance ||
-      defaultAnalysis.modernRelevance,
-  };
+  const { data: analysisData, isLoading } = useGetPoemAnalysisQuery({
+    poemId,
+    language: "zh-CN",
+  }) as { data: ApiResponse | undefined; isLoading: boolean };
 
-  // Extract emotional themes if available
-  const emotionalThemes = poem?.aiPoweredAnalysis?.emotionalThemes || [
-    { name: "Nostalgia", intensity: "Strong", color: "blue" },
-    { name: "Loneliness", intensity: "Moderate", color: "purple" },
-    { name: "Tranquility", intensity: "Subtle", color: "green" },
-    { name: "Reflection", intensity: "Strong", color: "yellow" },
-  ];
+  // Get AI analysis data from API response or use defaults
+  const analysis = useMemo(
+    () => ({
+      emotionalTone:
+        analysisData?.data?.aiPoweredAnalysis?.emotionalTone ||
+        defaultAnalysis.emotionalTone,
+      literaryTechniques:
+        analysisData?.data?.aiPoweredAnalysis?.literaryTechniques ||
+        defaultAnalysis.literaryTechniques,
+      modernRelevance:
+        analysisData?.data?.aiPoweredAnalysis?.modernRelevance ||
+        defaultAnalysis.modernRelevance,
+      rhythmPattern: analysisData?.data?.aiPoweredAnalysis?.rhythmPattern,
+      emotionalJourney: analysisData?.data?.aiPoweredAnalysis?.emotionalJourney,
+      literaryDevices: analysisData?.data?.aiPoweredAnalysis?.literaryDevices,
+      structure: analysisData?.data?.aiPoweredAnalysis?.structure,
+      historicalComparisons:
+        analysisData?.data?.aiPoweredAnalysis?.historicalComparisons,
+      culturalSignificance:
+        analysisData?.data?.aiPoweredAnalysis?.culturalSignificance,
+    }),
+    [analysisData]
+  );
 
-  // Extract literary devices if available
-  const literaryDevices = poem?.aiPoweredAnalysis?.literaryDevices || [
-    {
-      name: "Metaphor",
-      description:
-        "The moonlight is compared to frost on the ground, creating a visual connection between the two white, luminous elements.",
-      color: "yellow",
-    },
-    {
-      name: "Contrast",
-      description:
-        "The poet uses the contrast between looking up (at the moon) and looking down (thinking of home) to create emotional depth.",
-      color: "green",
-    },
-    {
-      name: "Imagery",
-      description:
-        "Vivid visual imagery of moonlight, frost, and the physical actions of looking up and down create a clear mental picture.",
-      color: "blue",
-    },
-  ];
+  const LoadingSkeleton = () => (
+    <div className="animate-pulse space-y-4">
+      <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+      <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+      <div className="h-4 bg-gray-200 rounded w-5/6"></div>
+    </div>
+  );
+
+  if (isLoading) {
+    return (
+      <div className="p-6">
+        <h2 className="text-2xl font-bold mb-6">AI-Powered Analysis</h2>
+        <Card>
+          <CardHeader>
+            <CardTitle>Loading Analysis...</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <LoadingSkeleton />
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  console.log(analysisData);
 
   // Handle AI question submission
   const handleAskAi = () => {
@@ -177,31 +227,31 @@ export default function AiAnalysis({ poem }: AiAnalysisProps) {
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="p-4 pt-0">
-                      <div className="space-y-2">
-                        {poem?.aiPoweredAnalysis?.emotionalJourney ? (
+                      <div className="space-y-4">
+                        {analysis.emotionalJourney ? (
                           // Render dynamic emotional journey if available
-                          poem.aiPoweredAnalysis.emotionalJourney.map(
-                            (emotion: any, index: number) => (
-                              <div key={index}>
-                                <div className="flex items-center justify-between">
-                                  <span>{emotion.name}</span>
-                                  <Badge variant="outline">
-                                    Lines {emotion.lines}
-                                  </Badge>
-                                </div>
-                                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                                  <div
-                                    className={`h-full bg-${
-                                      emotion.color || "blue"
-                                    }-400`}
-                                    style={{
-                                      width: `${emotion.intensity || 50}%`,
-                                    }}
-                                  ></div>
-                                </div>
+                          analysis.emotionalJourney.map((emotion, index) => (
+                            <div key={index} className="space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span>{emotion.name}</span>
+                                <Badge variant="outline">
+                                  Lines {emotion.lines}
+                                </Badge>
                               </div>
-                            )
-                          )
+                              <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full"
+                                  style={{
+                                    width: `${emotion.intensity}%`,
+                                    backgroundColor: emotion.color,
+                                  }}
+                                ></div>
+                              </div>
+                              <p className="text-sm text-gray-600 italic mt-1">
+                                {emotion.explanation}
+                              </p>
+                            </div>
+                          ))
                         ) : (
                           // Default emotional journey
                           <>
@@ -242,7 +292,7 @@ export default function AiAnalysis({ poem }: AiAnalysisProps) {
                     </CardHeader>
                     <CardContent className="p-4 pt-0">
                       <div className="grid grid-cols-2 gap-2">
-                        {emotionalThemes.map((theme: any, index: number) => (
+                        {analysis.emotionalJourney?.map((theme, index) => (
                           <motion.div
                             key={index}
                             className="border rounded-md p-2 flex flex-col items-center justify-center text-center"
@@ -294,7 +344,7 @@ export default function AiAnalysis({ poem }: AiAnalysisProps) {
                     <h3 className="text-lg font-medium">Poetic Devices</h3>
 
                     <div className="space-y-3">
-                      {literaryDevices.map((device: any, index: number) => (
+                      {analysis.literaryDevices?.map((device, index) => (
                         <motion.div
                           key={index}
                           className="border rounded-md p-3"
@@ -320,19 +370,65 @@ export default function AiAnalysis({ poem }: AiAnalysisProps) {
                   <div className="space-y-4">
                     <h3 className="text-lg font-medium">Structural Analysis</h3>
 
-                    {poem?.aiPoweredAnalysis?.structure ? (
-                      // Dynamic structure if available
+                    {analysis.rhythmPattern ? (
                       <div className="border rounded-md p-4">
                         <h4 className="font-medium mb-2">
-                          Form: {poem.aiPoweredAnalysis.structure.form}
+                          Form: {analysis.rhythmPattern.structure}
                         </h4>
-                        <ul className="list-disc list-inside space-y-1 text-sm">
-                          {poem.aiPoweredAnalysis.structure.characteristics.map(
-                            (item: string, i: number) => (
-                              <li key={i}>{item}</li>
-                            )
-                          )}
-                        </ul>
+
+                        {/* Rhythm Lines */}
+                        <div className="space-y-4 mt-4">
+                          {analysis.rhythmPattern.lines.map((line, i) => (
+                            <motion.div
+                              key={i}
+                              className="space-y-2"
+                              initial={{ opacity: 0, x: -20 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              transition={{ delay: i * 0.1 }}
+                            >
+                              <div className="flex justify-between items-center">
+                                <span className="text-sm font-medium">
+                                  {line.text}
+                                </span>
+                                <Badge variant="outline" className="text-xs">
+                                  Line {i + 1}
+                                </Badge>
+                              </div>
+
+                              {/* Tones Display */}
+                              <div className="grid grid-cols-5 gap-1">
+                                {line.tones.map((tone, j) => (
+                                  <motion.div
+                                    key={j}
+                                    className={`p-1 text-center text-sm rounded ${
+                                      tone === "平"
+                                        ? "bg-blue-100 text-blue-800"
+                                        : "bg-red-100 text-red-800"
+                                    }`}
+                                    whileHover={{ scale: 1.1 }}
+                                  >
+                                    {tone}
+                                  </motion.div>
+                                ))}
+                              </div>
+
+                              {/* Annotation */}
+                              <p className="text-sm text-gray-600 italic">
+                                {line.annotation}
+                              </p>
+                            </motion.div>
+                          ))}
+                        </div>
+
+                        {/* Rules */}
+                        <div className="mt-4 pt-4 border-t">
+                          <h4 className="font-medium mb-2">Rhythm Rules</h4>
+                          <ul className="list-disc list-inside space-y-1 text-sm">
+                            {analysis.rhythmPattern.rules.map((rule, i) => (
+                              <li key={i}>{rule}</li>
+                            ))}
+                          </ul>
+                        </div>
                       </div>
                     ) : (
                       // Default structure
@@ -426,11 +522,11 @@ export default function AiAnalysis({ poem }: AiAnalysisProps) {
                       </div>
                     </CardHeader>
                     <CardContent className="p-4 pt-0">
-                      {poem?.aiPoweredAnalysis?.contemporaryParallels ? (
-                        // Dynamic contemporary parallels if available
+                      {Array.isArray(analysis.culturalSignificance) ? (
                         <ul className="space-y-2 text-sm">
-                          {poem.aiPoweredAnalysis.contemporaryParallels.map(
-                            (parallel: string, i: number) => (
+                          {analysis.culturalSignificance
+                            .split("\n")
+                            .map((parallel: string, i: number) => (
                               <motion.li
                                 key={i}
                                 className="flex items-start gap-2"
@@ -443,8 +539,7 @@ export default function AiAnalysis({ poem }: AiAnalysisProps) {
                                 </span>
                                 <span>{parallel}</span>
                               </motion.li>
-                            )
-                          )}
+                            ))}
                         </ul>
                       ) : (
                         // Default contemporary parallels
@@ -483,10 +578,10 @@ export default function AiAnalysis({ poem }: AiAnalysisProps) {
                     </CardHeader>
                     <CardContent className="p-4 pt-0">
                       <div className="space-y-2 text-sm">
-                        {poem?.aiPoweredAnalysis?.historicalComparisons ? (
+                        {analysis.historicalComparisons ? (
                           // Dynamic historical comparisons if available
-                          poem.aiPoweredAnalysis.historicalComparisons.map(
-                            (comparison: any, i: number) => (
+                          analysis.historicalComparisons.map(
+                            (comparison, i) => (
                               <div
                                 key={i}
                                 className="flex items-center justify-between"
@@ -556,26 +651,19 @@ export default function AiAnalysis({ poem }: AiAnalysisProps) {
                     </CardHeader>
                     <CardContent className="p-4 pt-0">
                       <div className="space-y-3 text-sm">
-                        {poem?.aiPoweredAnalysis?.modernInterpretations ? (
-                          // Dynamic modern interpretations if available
-                          poem.aiPoweredAnalysis.modernInterpretations.map(
-                            (interp: any, i: number) => (
-                              <motion.div
-                                key={i}
-                                className={`border-l-2 border-${
-                                  interp.color || "yellow"
-                                }-300 pl-2`}
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: i * 0.2 }}
-                              >
-                                <p className="italic">{interp.quote}</p>
-                                <p className="text-xs text-gray-500 mt-1">
-                                  — {interp.attribution}
-                                </p>
-                              </motion.div>
-                            )
-                          )
+                        {analysis.culturalSignificance ? (
+                          <motion.div
+                            className="border-l-2 border-yellow-300 pl-2"
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                          >
+                            <p className="italic">
+                              {analysis.culturalSignificance}
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              — Cultural Analysis
+                            </p>
+                          </motion.div>
                         ) : (
                           // Default modern interpretations
                           <>

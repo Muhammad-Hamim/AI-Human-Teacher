@@ -12,7 +12,7 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    include: ["socket.io-client"],
+    include: [],
   },
   server: {
     port: 3000,

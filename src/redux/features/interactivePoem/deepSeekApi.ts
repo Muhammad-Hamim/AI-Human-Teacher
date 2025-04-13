@@ -1,13 +1,44 @@
 import { PoemNarrationResponse } from "@/components/Pages/PoemPage/virtual-storyteller";
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 
-export interface AnalysisRequest {
-  poemText: string;
-  poemTitle?: string;
-  author?: string;
-  analysisType: "interpretation" | "themes" | "figurative" | "comparison";
-  userLevel?: "beginner" | "intermediate" | "advanced";
-}
+export type AiPoweredAnalysis = {
+  emotionalTone: string;
+  literaryTechniques: string;
+  modernRelevance: string;
+  rhythmPattern: {
+    structure: string;
+    lines: Array<{
+      text: string;
+      tones: string[];
+      annotation: string;
+    }>;
+    rules: string[];
+  };
+  emotionalJourney: Array<{
+    name: string;
+    lines: string;
+    intensity: number;
+    color: string;
+    explanation: string;
+  }>;
+  literaryDevices: Array<{
+    name: string;
+    description: string;
+    color: string;
+    lines: string[];
+  }>;
+  structure: {
+    form: string;
+    characteristics: string[];
+  };
+  historicalComparisons: Array<{
+    aspect: string;
+    then: string;
+    now: string;
+  }>;
+  culturalSignificance: string;
+};
+
 
 export interface QuizRequest {
   poemText: string;
@@ -119,11 +150,13 @@ export const deepSeekApi = createApi({
     baseUrl: "http://localhost:5000/api/v1/",
   }),
   endpoints: (builder) => ({
-    getPoemAnalysis: builder.query<any, AnalysisRequest>({
-      query: (request) => ({
-        url: "analysis",
-        method: "POST",
-        body: request,
+    getPoemAnalysis: builder.query<AiPoweredAnalysis, {
+      poemId: string;
+      language: string;
+    }>({
+      query: ({poemId, language}) => ({
+        url: `ai/poem-analysis/generate/${poemId}?language=${language}`,
+        method: "GET",
       }),
     }),
 
