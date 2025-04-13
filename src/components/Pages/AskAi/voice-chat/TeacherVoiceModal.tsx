@@ -10,7 +10,7 @@ import {
   Volume2,
   VolumeX,
   StopCircle,
-  Loader2
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -140,15 +140,29 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
       const SpeechRecognition =
         window.SpeechRecognition || window.webkitSpeechRecognition;
       recognitionRef.current = new SpeechRecognition();
-      recognitionRef.current.continuous = true;
-      recognitionRef.current.interimResults = true;
-      // Set initial language
-      recognitionRef.current.lang = language;
+      recognitionRef.current.continuous = true; // Ensure continuous recognition
+      recognitionRef.current.interimResults = true; // Capture interim results
+      recognitionRef.current.lang = language; // Set initial language
 
       recognitionRef.current.onresult = (event: any) => {
-        const result = event.results[event.results.length - 1];
-        const transcript = result[0].transcript;
-        setTranscript(transcript);
+        let finalTranscript = "";
+        let interimTranscript = "";
+
+        for (let i = 0; i < event.results.length; i++) {
+          const result = event.results[i];
+          if (result.isFinal) {
+            finalTranscript += result[0].transcript;
+          } else {
+            interimTranscript += result[0].transcript;
+          }
+        }
+
+        // Update transcript state with interim results for real-time feedback
+        setTranscript(finalTranscript + interimTranscript);
+
+        // Log transcripts for debugging
+        console.log("Interim Transcript:", interimTranscript);
+        console.log("Final Transcript:", finalTranscript);
       };
 
       recognitionRef.current.onerror = (event: any) => {
@@ -182,10 +196,8 @@ const TeacherVoiceModal = ({ isOpen, onClose }: TeacherVoiceModalProps) => {
       recognitionRef.current.lang = language;
       console.log(`Speech recognition language set to: ${language}`);
     }
-     // Stop listening if active
-
-      stopListening();
-
+    // Stop listening if active
+    stopListening();
   }, [language]);
 
   // Handle audio analysis
