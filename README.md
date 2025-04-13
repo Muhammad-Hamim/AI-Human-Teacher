@@ -71,35 +71,34 @@ AI Human Teacher is an innovative Chinese learning platform that leverages artif
 
 ### 克隆代码库 Clone the Repository
 
+## Backend
+
 ```bash
-git clone https://github.com/Muhammad-Hamim/AI-Human-Teacher.git
-cd AI-Human-Teacher
+git clone --branch server-side https://github.com/Muhammad-Hamim/AI-Human-Teacher.git
 ```
+
+**After cloning the repository the project folder name will be appear as `AI-Human-Teacher`, it is recommended to rename the folder name otherwise you need to clone frontend and backend code into different folder.**
 
 ### 安装依赖 Install Dependencies
-
-#### 前端 Frontend
-
-```bash
-cd main
-npm install
-```
 
 #### 后端 Backend
 
 ```bash
-cd server-side
+cd <your project folder>
 npm install
 ```
+
 ### 安装 Edge TTS 依赖 Install Edge TTS Dependency
-在 `server-side` 目录下运行以下命令安装 Edge TTS 依赖：
+
+在 `<your project folder>` 目录下运行以下命令安装 Edge TTS 依赖：
+
 ```bash
-install_edgetts.bat 
+install_edgetts.bat
 ```
 
 ### 配置环境变量 Configure Environment Variables
 
-在 `server-side` 目录下创建 `.env` 文件，并添加以下内容：
+在 `<your project folder>` 目录下创建 `.env` 文件，并添加以下内容：
 
 ```env
 NODE_ENV=development
@@ -123,14 +122,33 @@ CLIENT_URL=http://localhost:5173
 #### 启动后端服务 Start Backend
 
 ```bash
-cd server-side
 npm run start:dev
+```
+
+**After successfully setup backend now setup and run frontend**
+
+## Frontend
+
+### 克隆代码库 Clone the Repository
+
+```bash
+git clone https://github.com/Muhammad-Hamim/AI-Human-Teacher.git
+```
+
+**After cloning the repository the project folder name will be appear as `AI-Human-Teacher`, it is recommended to rename the folder name otherwise you need to clone frontend and backend code into different folder.**
+
+### 安装依赖 Install Dependencies
+
+#### 前端 Frontend
+
+```bash
+cd <your project folder>
+npm install
 ```
 
 #### 启动前端服务 Start Frontend
 
 ```bash
-cd client-side
 npm run dev
 ```
 
