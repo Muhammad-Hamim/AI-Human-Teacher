@@ -12,6 +12,9 @@ import {
   Play,
   Pause,
   RefreshCw,
+  Check,
+  X,
+  Brain,
 } from "lucide-react";
 import { useAppDispatch } from "@/redux/hooks";
 import { addWritingPractice } from "@/redux/features/interactivePoem/userProgressSlice";
@@ -37,6 +40,18 @@ export default function WritingPractice({ poem }: WritingPracticeProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [charError, setCharError] = useState<string | null>(null);
+  const [isQuizMode, setIsQuizMode] = useState(false);
+  const [quizStats, setQuizStats] = useState<{
+    totalMistakes: number;
+    currentStroke: number;
+    strokesRemaining: number;
+    isComplete: boolean;
+  }>({
+    totalMistakes: 0,
+    currentStroke: 0,
+    strokesRemaining: 0,
+    isComplete: false,
+  });
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationDivRef = useRef<HTMLDivElement>(null);
@@ -559,12 +574,21 @@ export default function WritingPractice({ poem }: WritingPracticeProps) {
     window.speechSynthesis.speak(utterance);
   };
 
-  // Handle character selection
+  // Handle character selection - modified to reset quiz mode
   const handleSelectCharacter = (char: string) => {
     setSelectedChar(char);
 
     // Reset animation state
     setIsAnimating(false);
+
+    // Reset quiz state
+    setIsQuizMode(false);
+    setQuizStats({
+      totalMistakes: 0,
+      currentStroke: 0,
+      strokesRemaining: 0,
+      isComplete: false,
+    });
 
     // Record practice in Redux store
     dispatch(addWritingPractice({ character: char }));
@@ -584,6 +608,131 @@ export default function WritingPractice({ poem }: WritingPracticeProps) {
 
   const characters = getAllCharacters();
 
+  // Start quiz mode
+  const startQuiz = () => {
+    if (!writerRef.current || !selectedChar) return;
+
+    try {
+      setIsLoading(true);
+
+      // Clear existing canvas
+      clearCanvas();
+
+      // Reset the animation div
+      if (animationDivRef.current) {
+        animationDivRef.current.innerHTML = "";
+
+        // Get canvas dimensions
+        const canvas = canvasRef.current;
+        const width = canvas?.offsetWidth || 400;
+        const height = canvas?.offsetHeight || 400;
+
+        // Create a new writer instance specifically for quiz mode
+        writerRef.current = HanziWriter.create(
+          animationDivRef.current,
+          selectedChar,
+          {
+            width: width,
+            height: height,
+            padding: 20,
+            strokeColor: strokeColor,
+            radicalColor: strokeColor,
+            highlightColor: "#FF0000", // Red highlight for hints
+            outlineColor: "rgba(0, 0, 0, 0.2)",
+            showCharacter: false, // Don't show the character during quiz
+            showOutline: true, // Show outline to help with positioning
+            showHintAfterMisses: 1, // Show hint after 3 mistakes on a stroke
+            highlightOnComplete: true, // Flash when completed successfully
+            onLoadCharDataSuccess: () => {
+              setIsLoading(false);
+
+              // Add grid background after writer is created
+              createGridBackground();
+
+              // Start the quiz
+              writerRef.current.quiz({
+                onCorrectStroke: (strokeData: any) => {
+                  setQuizStats({
+                    totalMistakes: strokeData.totalMistakes,
+                    currentStroke: strokeData.strokeNum + 1, // strokeNum is 0-indexed
+                    strokesRemaining: strokeData.strokesRemaining,
+                    isComplete: false,
+                  });
+                },
+                onMistake: (strokeData: any) => {
+                  setQuizStats({
+                    totalMistakes: strokeData.totalMistakes,
+                    currentStroke: strokeData.strokeNum + 1, // strokeNum is 0-indexed
+                    strokesRemaining: strokeData.strokesRemaining,
+                    isComplete: false,
+                  });
+                },
+                onComplete: (summaryData: any) => {
+                  setQuizStats({
+                    totalMistakes: summaryData.totalMistakes,
+                    currentStroke: 0,
+                    strokesRemaining: 0,
+                    isComplete: true,
+                  });
+
+                  // Record successful practice in Redux store
+                  dispatch(
+                    addWritingPractice({
+                      character: selectedChar,
+                      // Removed quizCompleted and mistakesMade props as they're not in the type
+                    })
+                  );
+
+                  // After a brief delay, reset the quiz status but stay in quiz mode
+                  setTimeout(() => {
+                    setQuizStats({
+                      totalMistakes: 0,
+                      currentStroke: 0,
+                      strokesRemaining: 0,
+                      isComplete: false,
+                    });
+                  }, 2000);
+                },
+              });
+
+              setIsQuizMode(true);
+            },
+            onLoadCharDataError: (error: any) => {
+              console.error("Error loading character data for quiz:", error);
+              setIsLoading(false);
+              setCharError(`Could not load quiz data for "${selectedChar}"`);
+            },
+          }
+        );
+      }
+    } catch (e) {
+      console.error("Error starting quiz:", e);
+      setIsLoading(false);
+      setCharError(`Error setting up quiz for "${selectedChar}"`);
+      setIsQuizMode(false);
+    }
+  };
+
+  // End quiz mode
+  const endQuiz = () => {
+    if (writerRef.current) {
+      try {
+        // Cancel any ongoing quiz
+        writerRef.current.cancelQuiz();
+        resetAnimation(); // Reset back to practice mode
+        setIsQuizMode(false);
+        setQuizStats({
+          totalMistakes: 0,
+          currentStroke: 0,
+          strokesRemaining: 0,
+          isComplete: false,
+        });
+      } catch (e) {
+        console.error("Error ending quiz:", e);
+      }
+    }
+  };
+
   return (
     <div className="p-6">
       <h2 className="text-2xl font-bold mb-6">Writing Practice</h2>
@@ -599,6 +748,7 @@ export default function WritingPractice({ poem }: WritingPracticeProps) {
                 variant={selectedChar === char ? "default" : "outline"}
                 className="h-12 text-xl"
                 onClick={() => handleSelectCharacter(char)}
+                disabled={isQuizMode}
               >
                 {char}
               </Button>
@@ -626,6 +776,7 @@ export default function WritingPractice({ poem }: WritingPracticeProps) {
                       : speakCharacter
                   }
                   variant={isPlaying ? "secondary" : "default"}
+                  disabled={isQuizMode}
                 >
                   {isPlaying ? (
                     <>
@@ -662,6 +813,7 @@ export default function WritingPractice({ poem }: WritingPracticeProps) {
                       }`}
                       style={{ backgroundColor: color }}
                       onClick={() => setStrokeColor(color)}
+                      disabled={isQuizMode}
                     />
                   ))}
                 </div>
@@ -678,21 +830,32 @@ export default function WritingPractice({ poem }: WritingPracticeProps) {
                   step={1}
                   onValueChange={(value) => setStrokeWidth(value[0])}
                   className="w-full"
+                  disabled={isQuizMode}
                 />
               </div>
             </div>
           </div>
+
+          
         </Card>
 
         <Card className="p-4 col-span-1 lg:col-span-2">
           <h3 className="text-lg font-semibold mb-4">Writing Canvas</h3>
 
           <div className="flex gap-2 mb-4 flex-wrap">
-            <Button variant="outline" onClick={clearCanvas}>
+            <Button
+              variant="outline"
+              onClick={clearCanvas}
+              disabled={isQuizMode}
+            >
               <Eraser size={16} className="mr-2" />
               Clear
             </Button>
-            <Button variant="outline" onClick={downloadCanvas}>
+            <Button
+              variant="outline"
+              onClick={downloadCanvas}
+              disabled={isQuizMode}
+            >
               <Download size={16} className="mr-2" />
               Save
             </Button>
@@ -703,6 +866,7 @@ export default function WritingPractice({ poem }: WritingPracticeProps) {
                   variant={isAnimating ? "destructive" : "default"}
                   onClick={toggleAnimation}
                   className="font-medium"
+                  disabled={isQuizMode}
                 >
                   {isAnimating ? (
                     <>
@@ -720,10 +884,32 @@ export default function WritingPractice({ poem }: WritingPracticeProps) {
                   variant="secondary"
                   onClick={resetAnimation}
                   className="font-medium"
+                  disabled={isQuizMode}
                 >
                   <RefreshCw size={16} className="mr-2" />
                   Reset
                 </Button>
+
+                {/* Quiz mode toggle button */}
+                {isQuizMode ? (
+                  <Button
+                    variant="destructive"
+                    onClick={endQuiz}
+                    className="font-medium ml-auto"
+                  >
+                    <X size={16} className="mr-2" />
+                    End Quiz
+                  </Button>
+                ) : (
+                  <Button
+                    variant="default"
+                    onClick={startQuiz}
+                    className="font-medium ml-auto"
+                  >
+                    <Check size={16} className="mr-2" />
+                    Start Quiz
+                  </Button>
+                )}
               </>
             )}
           </div>
@@ -734,18 +920,20 @@ export default function WritingPractice({ poem }: WritingPracticeProps) {
                 <canvas
                   ref={canvasRef}
                   className="w-full h-[400px] bg-background rounded-lg touch-none"
-                  onMouseDown={startDrawing}
-                  onMouseMove={draw}
-                  onMouseUp={stopDrawing}
-                  onMouseLeave={stopDrawing}
-                  onTouchStart={startDrawing}
-                  onTouchMove={draw}
-                  onTouchEnd={stopDrawing}
+                  onMouseDown={!isQuizMode ? startDrawing : undefined}
+                  onMouseMove={!isQuizMode ? draw : undefined}
+                  onMouseUp={!isQuizMode ? stopDrawing : undefined}
+                  onMouseLeave={!isQuizMode ? stopDrawing : undefined}
+                  onTouchStart={!isQuizMode ? startDrawing : undefined}
+                  onTouchMove={!isQuizMode ? draw : undefined}
+                  onTouchEnd={!isQuizMode ? stopDrawing : undefined}
                 />
 
                 <div
                   ref={animationDivRef}
-                  className="absolute inset-0 pointer-events-none flex items-center justify-center"
+                  className={`absolute inset-0 ${
+                    isQuizMode ? "" : "pointer-events-none"
+                  } flex items-center justify-center`}
                   style={{ zIndex: 10 }}
                 />
 
@@ -798,12 +986,55 @@ export default function WritingPractice({ poem }: WritingPracticeProps) {
 
           <div className="mt-4 text-sm text-muted-foreground">
             <p>
-              Practice writing the character by tracing over the template or
-              create your own style.
+              {isQuizMode
+                ? "Quiz Mode: Draw each stroke in the correct order. After 3 mistakes on a stroke, a hint will appear."
+                : "Practice writing the character by tracing over the template or create your own style."}
             </p>
             <p className="mt-1">
-              The stroke animation shows the correct stroke order in red.
-            </p>
+              {isQuizMode
+                ? "Complete all strokes to finish the quiz. Your progress is tracked above."
+                : "The stroke animation shows the correct stroke order in red."}
+            </p>{/* Quiz Stats Display */}
+          {isQuizMode && (
+            <div className="mt-6 p-3 border border-muted rounded-md bg-muted/20">
+              <h3 className="text-lg font-semibold mb-2 flex items-center">
+                <Brain size={18} className="mr-2" />
+                Quiz Progress
+              </h3>
+
+              {quizStats.isComplete ? (
+                <div className="text-center py-2">
+                  <p className="text-green-600 font-medium mb-1">
+                    Quiz Complete!
+                  </p>
+                  <p className="text-muted-foreground">
+                    Total mistakes: {quizStats.totalMistakes}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span>Current stroke:</span>
+                    <span className="font-medium">
+                      {quizStats.currentStroke}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span>Strokes remaining:</span>
+                    <span className="font-medium">
+                      {quizStats.strokesRemaining}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span>Mistakes made:</span>
+                    <span className="font-medium">
+                      {quizStats.totalMistakes}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
           </div>
         </Card>
       </div>

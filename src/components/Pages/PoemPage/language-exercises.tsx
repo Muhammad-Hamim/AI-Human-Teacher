@@ -129,6 +129,7 @@ export default function LanguageExercises({ poem }: LanguageExercisesProps) {
 
   // When data is received, update the state
   useEffect(() => {
+    setIsLoadingExplanations(true); // Set loading state
     if (vocabularyData?.data?.vocabulary) {
       setVocabularyExplanations(vocabularyData.data.vocabulary);
       setIsLoadingExplanations(false);
@@ -491,41 +492,6 @@ export default function LanguageExercises({ poem }: LanguageExercisesProps) {
                   Get All Explanations
                 </Button>
               )}
-            </div>
-
-            {/* Default character display */}
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
-              {Array.from(
-                new Set(poem.lines.flatMap((line) => line.chinese.split("")))
-              ).map((character, index) => (
-                <Card key={index} className="overflow-hidden">
-                  <CardHeader className="p-4 pb-2 flex flex-row items-center justify-between">
-                    <CardTitle className="text-2xl">{character}</CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-4 pt-2">
-                    <div className="flex gap-2 mt-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 px-2"
-                        onClick={() => speak(character)}
-                      >
-                        <Volume2 size={16} className="mr-1" />
-                        Pronounce
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8 px-2"
-                        onClick={() => openWordExplanation(character)}
-                      >
-                        <BookOpen size={16} className="mr-1" />
-                        Details
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
             </div>
 
             {/* Display vocabulary explanations when requested */}
