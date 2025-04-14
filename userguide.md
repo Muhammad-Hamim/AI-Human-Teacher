@@ -31,9 +31,21 @@ Upon launching the application, you’ll land on the homepage, which includes:
 
 **[Space for Photo]**
 
-## Core Features
+## Key Features
+1. AI Conversation
+2. Poem Reader
+3. Virtual Storyteller
+4. Writing Practice
+5. Vocabulary & Language Exercises
+6. Interactive Quizzes 
+7. Pronunciation Practice
+8. Imagery & Symbolism 
+9. Cultural Context 
+10. AI Poetry Analysis
 
-### 1. Ask AI Chat
+Let’s explore each feature in detail.
+
+### 1. AI Conversation
 
 Engage in natural, conversational learning with an AI specialized in Chinese poetry.
 
