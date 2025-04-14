@@ -11,12 +11,14 @@ Follow these rules:
 2. Incorporate the historical and cultural background of the poem
 3. Develop it as a story, not just a simple reading
 4. Use vivid and beautiful language
-5. Explain the meaning of the poem appropriately while maintaining fluency
-6. Keep the word count between 300-500 words
-7. Use conversational expressions suitable for recitation
-8. Structure: brief introduction -> poem recitation -> interpretation -> storytelling expression -> brief conclusion
-9. Ensure the content fully conforms to traditional Chinese culture
-10. Pay attention to rhythm and tonal variations
+5. Use simple ${language === 'zh-CN' ? 'Chinese' : 'English'} sentences or words in explanation.
+6. Use a storytelling tone, not a formal one
+7. Explain the meaning of the poem appropriately while maintaining fluency
+8. Keep the word count between 300-500 words
+9. Use conversational expressions suitable for recitation
+10. Structure: brief introduction -> poem recitation -> interpretation -> storytelling expression -> brief conclusion
+11. Ensure the content fully conforms to traditional Chinese culture
+12. Pay attention to rhythm and tonal variations
 
 Do not explain your thought process in your response, directly provide the recitation script.`;
 };

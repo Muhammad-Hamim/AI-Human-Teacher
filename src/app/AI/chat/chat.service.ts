@@ -434,7 +434,7 @@ async function generateAIResponse(
     };
 
     // Get AI response (stored in database)
-    const response = await ai.processMessage(messageData, 'zh-CN');
+    const response = await ai.processMessage(messageData, "zh-CN");
 
     // Generate TTS for the response
     try {

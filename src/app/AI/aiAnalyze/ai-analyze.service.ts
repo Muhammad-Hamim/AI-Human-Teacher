@@ -50,6 +50,15 @@ interface AIAnalysisResponse {
 }
 
 function cleanAIResponse(response: string): string {
+  // Log original response for debugging
+  Logger.debug("Original AI Response:", response);
+
+  // Handle null or undefined response
+  if (!response) {
+    Logger.error("Received empty response from AI");
+    return "{}";
+  }
+
   // Remove markdown code blocks
   let cleaned = response.replace(/```json\n?/g, "").replace(/```\n?/g, "");
 
@@ -61,6 +70,9 @@ function cleanAIResponse(response: string): string {
     const jsonStart = cleaned.indexOf("{");
     if (jsonStart !== -1) {
       cleaned = cleaned.slice(jsonStart);
+    } else {
+      Logger.error("No JSON object found in response");
+      return "{}";
     }
   }
 
@@ -68,9 +80,30 @@ function cleanAIResponse(response: string): string {
   const lastBrace = cleaned.lastIndexOf("}");
   if (lastBrace !== -1) {
     cleaned = cleaned.slice(0, lastBrace + 1);
+  } else {
+    Logger.error("No closing brace found in response");
+    return "{}";
   }
 
-  return cleaned;
+  // Validate JSON structure
+  try {
+    JSON.parse(cleaned);
+    return cleaned;
+  } catch (e) {
+    Logger.error("Failed to parse cleaned response as JSON:", e);
+    // Try to fix common JSON issues
+    cleaned = cleaned.replace(/,\s*}/g, "}"); // Remove trailing commas
+    cleaned = cleaned.replace(/,\s*]/g, "]"); // Remove trailing commas in arrays
+    cleaned = cleaned.replace(/([{,])\s*([a-zA-Z0-9_]+)\s*:/g, '$1"$2":'); // Ensure property names are quoted
+
+    try {
+      JSON.parse(cleaned);
+      return cleaned;
+    } catch (e2) {
+      Logger.error("Failed to parse fixed response as JSON:", e2);
+      return "{}";
+    }
+  }
 }
 
 export const analyzePoem = async (
@@ -262,6 +295,7 @@ ${
 }`;
 
     try {
+      Logger.debug("Sending analysis request to AI service");
       const analysisResponse = await ai.generateCompletion(
         [
           { role: "system", content: systemPrompt },
@@ -273,11 +307,14 @@ ${
         }
       );
 
+      Logger.debug("Received raw response from AI service");
+
       // Clean the response before parsing
       const cleanedResponse = cleanAIResponse(analysisResponse);
       Logger.debug("Cleaned AI Response:", cleanedResponse);
 
       try {
+        Logger.debug("Attempting to parse response as JSON");
         const analysis = JSON.parse(cleanedResponse);
 
         if (!analysis.aiPoweredAnalysis) {
@@ -287,11 +324,12 @@ ${
           );
         }
 
+        Logger.debug("Successfully parsed and validated AI response");
         return analysis;
       } catch (parseError) {
         Logger.error(
           "Failed to parse AI response:",
-          parseError,
+          String(parseError),
           "\nResponse:",
           cleanedResponse
         );

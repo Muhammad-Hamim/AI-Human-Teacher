@@ -33,6 +33,7 @@ const systemPrompt = (language: "zh-CN" | "en-US") => {
 4. "keywords"数组应该包含诗中与该元素相关的实际汉字
 5. "culturalSignificance"应列出这个象征在中国文学传统中的3-4个更广泛的文化含义（用中文描述）
 6. "icon"应该建议一个代表该元素的简单图标名称（使用英文，如："Moon", "Mountain", "Water", "Home", "Journey"等）
+use simple chinese words/sentences and grammar
 
 你的分析应该有深度、文化准确性，并且专注于这首诗歌中的特定意象，而不是泛泛而谈。
 
@@ -70,6 +71,7 @@ Requirements:
 6. "icon" should suggest a simple icon name that represents the element (in English, e.g., "Moon", "Mountain", "Water", "Home", "Journey")
 
 Your analysis should be in-depth, culturally accurate, and focused on the specific imagery in this poem, not general symbolism.
+use simple english words/sentences and grammar
 
 Important note: Only return valid JSON, and do not include any additional text, Markdown, or code blocks.
     `;

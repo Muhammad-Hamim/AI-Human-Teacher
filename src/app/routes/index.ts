@@ -5,7 +5,12 @@ import { PoemRouter } from "../Models/poem/poem.route";
 import { ChatRouter } from "../Models/chat/chat.route";
 import { MessageRouter } from "../Models/message/message.route";
 import { VocabularyRouter } from "../Models/vocabulary/vocabulary.route";
-import { ChatRoutes, PoemNarrationRoutes, PoemInsightsRoutes } from "../AI";
+import {
+  ChatRoutes,
+  PoemNarrationRoutes,
+  PoemInsightsRoutes,
+  QuizRoutes,
+} from "../AI";
 import VoiceRoutes from "../AI/voice/voice.route";
 import TTSTestRoutes from "../AI/edgetts/tts-test.route";
 import { aiAnalyzeRoutes } from "../AI/aiAnalyze";
@@ -60,6 +65,10 @@ const moduleRoutes = [
   {
     path: "/ai/poem-analysis",
     route: aiAnalyzeRoutes,
+  },
+  {
+    path: "/ai/quiz",
+    route: QuizRoutes,
   },
 ];
 

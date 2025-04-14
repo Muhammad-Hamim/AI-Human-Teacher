@@ -65,6 +65,11 @@ interface IAIModel {
   processMessageStream(
     messageData: Omit<TMessage, "_id">
   ): AsyncGenerator<Partial<TMessage>, TMessage, unknown>;
+  getCompletion(params: {
+    systemPrompt: string;
+    userPrompt: string;
+    options?: AIModelOptions;
+  }): Promise<string>;
 }
 
 // Base class for AI models
@@ -533,71 +538,70 @@ abstract class BaseAIModel implements IAIModel {
     messageData: Omit<TMessage, "_id">,
     language?: "en-US" | "zh-CN"
   ): AsyncGenerator<Partial<TMessage>, TMessageDocument, unknown> {
-      const savedUserMessage = await this.saveMessage(messageData);
+    const savedUserMessage = await this.saveMessage(messageData);
 
-      const history = await this.getConversationHistory(messageData.chatId);
+    const history = await this.getConversationHistory(messageData.chatId);
 
-      const messages = await this.conversationToMessages(
-        history,
-        language as "zh-CN" | "en-US"
-      );
+    const messages = await this.conversationToMessages(
+      history,
+      language as "zh-CN" | "en-US"
+    );
 
-      const aiResponseData: Omit<TMessage, "_id"> = {
-        userId: messageData.userId,
-        user: {
-          senderId: null,
-          senderType: "assistant",
-        },
-        chatId: messageData.chatId,
-        message: {
-          content: "I'm thinking...",
-          contentType: "text",
-        },
-        isAIResponse: true,
-        isDeleted: false,
-        isStreaming: true,
-        replyToMessageId: savedUserMessage._id?.toString(),
-      };
+    const aiResponseData: Omit<TMessage, "_id"> = {
+      userId: messageData.userId,
+      user: {
+        senderId: null,
+        senderType: "assistant",
+      },
+      chatId: messageData.chatId,
+      message: {
+        content: "I'm thinking...",
+        contentType: "text",
+      },
+      isAIResponse: true,
+      isDeleted: false,
+      isStreaming: true,
+      replyToMessageId: savedUserMessage._id?.toString(),
+    };
 
-      const savedAiMessage = await this.saveMessage(aiResponseData);
+    const savedAiMessage = await this.saveMessage(aiResponseData);
 
-      let accumulatedContent = "";
+    let accumulatedContent = "";
 
-      try {
-        for await (const contentChunk of this.generateCompletionStream(
-          messages
-        )) {
-          accumulatedContent += contentChunk;
+    try {
+      for await (const contentChunk of this.generateCompletionStream(
+        messages
+      )) {
+        accumulatedContent += contentChunk;
 
-          yield {
-            _id: savedAiMessage._id,
-            message: {
-              content: contentChunk,
-              contentType: "text",
-            },
-            isStreaming: true,
-          };
-        }
-
-        if (accumulatedContent.length === 0) {
-          accumulatedContent =
-            "I'm sorry, I couldn't generate a response. Please try again.";
-        }
-
-        savedAiMessage.message.content = accumulatedContent;
-        savedAiMessage.isStreaming = false;
-        await savedAiMessage.save();
-
-        return savedAiMessage;
-      } catch (error) {
-        savedAiMessage.message.content =
-          "I apologize, but I encountered an error while generating a response.";
-        savedAiMessage.isStreaming = false;
-        await savedAiMessage.save();
-
-        throw error;
+        yield {
+          _id: savedAiMessage._id,
+          message: {
+            content: contentChunk,
+            contentType: "text",
+          },
+          isStreaming: true,
+        };
       }
-   
+
+      if (accumulatedContent.length === 0) {
+        accumulatedContent =
+          "I'm sorry, I couldn't generate a response. Please try again.";
+      }
+
+      savedAiMessage.message.content = accumulatedContent;
+      savedAiMessage.isStreaming = false;
+      await savedAiMessage.save();
+
+      return savedAiMessage;
+    } catch (error) {
+      savedAiMessage.message.content =
+        "I apologize, but I encountered an error while generating a response.";
+      savedAiMessage.isStreaming = false;
+      await savedAiMessage.save();
+
+      throw error;
+    }
   }
 
   async generateCompletion(
@@ -751,6 +755,23 @@ abstract class BaseAIModel implements IAIModel {
     } catch (error) {
       return "I'm having trouble accessing the poem database at the moment.";
     }
+  }
+
+  async getCompletion({
+    systemPrompt,
+    userPrompt,
+    options = {},
+  }: {
+    systemPrompt: string;
+    userPrompt: string;
+    options?: AIModelOptions;
+  }): Promise<string> {
+    const messages: AIMessage[] = [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ];
+
+    return this.generateCompletion(messages, options);
   }
 }
 

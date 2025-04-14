@@ -7,6 +7,7 @@ import SpeechService from "./services/speech.service";
 import { PoemNarrationRoutes } from "./poem-narration/poem-narration.route";
 import { PoemInsightsRoutes } from "./poem-insights/poem-insights.route";
 import TTSTestRoutes from "./edgetts/tts-test.route";
+import { QuizRoutes } from "./quiz/quiz.route";
 import { Router } from "express";
 import { aiAnalyzeRoutes } from "./aiAnalyze/ai-analyze.route";
 
@@ -21,6 +22,7 @@ export {
   PoemNarrationRoutes,
   PoemInsightsRoutes,
   TTSTestRoutes,
+  QuizRoutes,
 };
 
 /**
