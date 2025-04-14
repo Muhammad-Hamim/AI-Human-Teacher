@@ -26,6 +26,7 @@ import {
   useGetVocabularyExplanationQuery,
   useGetAllVocabularyExplanationsQuery,
 } from "@/redux/features/interactivePoem/deepSeekApi";
+import AiQuiz from "./ai-quiz";
 
 interface PoemLine {
   chinese: string;
@@ -477,6 +478,7 @@ export default function LanguageExercises({ poem }: LanguageExercisesProps) {
         <TabsList className="mb-6">
           <TabsTrigger value="vocabulary">Vocabulary</TabsTrigger>
           <TabsTrigger value="quiz">Quiz</TabsTrigger>
+          <TabsTrigger value="ai-quiz">AI Knowledge Assessment</TabsTrigger>
         </TabsList>
 
         <TabsContent value="vocabulary">
@@ -849,6 +851,10 @@ export default function LanguageExercises({ poem }: LanguageExercisesProps) {
               </div>
             </div>
           </div>
+        </TabsContent>
+
+        <TabsContent value="ai-quiz">
+          <AiQuiz poem={poem} />
         </TabsContent>
       </Tabs>
 

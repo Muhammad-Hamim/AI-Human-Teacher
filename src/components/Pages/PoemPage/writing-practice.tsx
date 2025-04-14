@@ -835,8 +835,6 @@ export default function WritingPractice({ poem }: WritingPracticeProps) {
               </div>
             </div>
           </div>
-
-          
         </Card>
 
         <Card className="p-4 col-span-1 lg:col-span-2">
@@ -994,47 +992,48 @@ export default function WritingPractice({ poem }: WritingPracticeProps) {
               {isQuizMode
                 ? "Complete all strokes to finish the quiz. Your progress is tracked above."
                 : "The stroke animation shows the correct stroke order in red."}
-            </p>{/* Quiz Stats Display */}
-          {isQuizMode && (
-            <div className="mt-6 p-3 border border-muted rounded-md bg-muted/20">
-              <h3 className="text-lg font-semibold mb-2 flex items-center">
-                <Brain size={18} className="mr-2" />
-                Quiz Progress
-              </h3>
+            </p>
+            {/* Quiz Stats Display */}
+            {isQuizMode && (
+              <div className="mt-6 p-3 border border-muted rounded-md bg-muted/20">
+                <h3 className="text-lg font-semibold mb-2 flex items-center">
+                  <Brain size={18} className="mr-2" />
+                  Quiz Progress
+                </h3>
 
-              {quizStats.isComplete ? (
-                <div className="text-center py-2">
-                  <p className="text-green-600 font-medium mb-1">
-                    Quiz Complete!
-                  </p>
-                  <p className="text-muted-foreground">
-                    Total mistakes: {quizStats.totalMistakes}
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span>Current stroke:</span>
-                    <span className="font-medium">
-                      {quizStats.currentStroke}
-                    </span>
+                {quizStats.isComplete ? (
+                  <div className="text-center py-2">
+                    <p className="text-green-600 font-medium mb-1">
+                      Quiz Complete!
+                    </p>
+                    <p className="text-muted-foreground">
+                      Total mistakes: {quizStats.totalMistakes}
+                    </p>
                   </div>
-                  <div className="flex justify-between text-sm">
-                    <span>Strokes remaining:</span>
-                    <span className="font-medium">
-                      {quizStats.strokesRemaining}
-                    </span>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span>Current stroke:</span>
+                      <span className="font-medium">
+                        {quizStats.currentStroke}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span>Strokes remaining:</span>
+                      <span className="font-medium">
+                        {quizStats.strokesRemaining}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span>Mistakes made:</span>
+                      <span className="font-medium">
+                        {quizStats.totalMistakes}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex justify-between text-sm">
-                    <span>Mistakes made:</span>
-                    <span className="font-medium">
-                      {quizStats.totalMistakes}
-                    </span>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
+                )}
+              </div>
+            )}
           </div>
         </Card>
       </div>

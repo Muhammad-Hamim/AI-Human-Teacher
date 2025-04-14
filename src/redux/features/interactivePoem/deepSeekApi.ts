@@ -39,7 +39,6 @@ export type AiPoweredAnalysis = {
   culturalSignificance: string;
 };
 
-
 export interface QuizRequest {
   poemText: string;
   poemTitle?: string;
@@ -144,17 +143,46 @@ export interface AllVocabularyExplanationsResponse {
   };
 }
 
+export interface AiQuizRequest {
+  poemId: string;
+  language: "zh-CN" | "en-US";
+  knowledgeLevel: "beginner" | "intermediate" | "advanced";
+  numQuestions: number;
+}
+
+export interface AiQuizResponse {
+  success: boolean;
+  message: string;
+  data: {
+    quiz: {
+      difficulty: string;
+      questions: Array<{
+        id: string;
+        type: "multiple-choice" | "fill-blank" | "essay";
+        question: string;
+        options?: string[];
+        correctAnswer: string;
+        sampleAnswer?: string;
+      }>;
+      adaptiveRecommendation?: string;
+    };
+  };
+}
+
 export const deepSeekApi = createApi({
   reducerPath: "deepSeekApi",
   baseQuery: fetchBaseQuery({
     baseUrl: "http://localhost:5000/api/v1/",
   }),
   endpoints: (builder) => ({
-    getPoemAnalysis: builder.query<AiPoweredAnalysis, {
-      poemId: string;
-      language: string;
-    }>({
-      query: ({poemId, language}) => ({
+    getPoemAnalysis: builder.query<
+      AiPoweredAnalysis,
+      {
+        poemId: string;
+        language: string;
+      }
+    >({
+      query: ({ poemId, language }) => ({
         url: `ai/poem-analysis/generate/${poemId}?language=${language}`,
         method: "GET",
       }),
@@ -467,6 +495,19 @@ export const deepSeekApi = createApi({
         };
       },
     }),
+
+    getAiQuiz: builder.query<AiQuizResponse, AiQuizRequest>({
+      query: (params) => ({
+        url: `ai/quiz/${params.poemId}`,
+        method: "GET",
+        params: {
+          language: params.language,
+          knowledgeLevel: params.knowledgeLevel,
+          numQuestions: params.numQuestions,
+        },
+      }),
+      keepUnusedDataFor: 300, // Cache for 5 minutes
+    }),
   }),
 });
 
@@ -484,4 +525,5 @@ export const {
   useGetPoemInsightsMutation,
   useGetVocabularyExplanationQuery,
   useGetAllVocabularyExplanationsQuery,
+  useGetAiQuizQuery,
 } = deepSeekApi;
