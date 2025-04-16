@@ -49,7 +49,7 @@ AI Human Teacher is an innovative Chinese learning platform that leverages artif
 - [MongoDB](https://www.mongodb.com/) 数据库
 - [Socket.io](https://socket.io/) WebRTC 信令服务
 - [Edge TTS](https://learn.microsoft.com/en-us/azure/cognitive-services/speech-service/) 语音合成
-- [DeepSeek AI](https://platform.deepseek.com/docs) 模型集成
+- [DeepSeek AI](https://openrouter.ai/deepseek/deepseek-v3-base:free) 模型集成
 
 ## 系统要求 System Requirements
 

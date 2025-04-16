@@ -780,7 +780,7 @@ class DeepseekModel extends BaseAIModel {
   constructor() {
     super(
       config.ai_api_key as string,
-      "deepseek/deepseek-r1:free",
+      "deepseek/deepseek-v3-base:free",
       config.ai_base_url
     );
   }
