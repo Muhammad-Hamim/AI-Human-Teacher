@@ -35,37 +35,36 @@ AI Human Teacher is an innovative Chinese learning platform that leverages artif
 
 ### 前端技术栈 Frontend Stack
 
-- React 19.0.0 + TypeScript
-- Redux Toolkit 状态管理
-- Socket.io-client 实时通信
-- TailwindCSS + Radix UI 界面设计
-- Framer Motion 动画效果
-- WebRTC API 音视频处理
+- [React](https://react.dev/) 19.0.0 + [TypeScript](https://www.typescriptlang.org/)
+- [Redux Toolkit](https://redux-toolkit.js.org/) 状态管理
+- [Socket.io-client](https://socket.io/docs/v4/client-api/) 实时通信
+- [TailwindCSS](https://tailwindcss.com/) + [Radix UI](https://www.radix-ui.com/) 界面设计
+- [Framer Motion](https://www.framer.com/motion/) 动画效果
+- [WebRTC API](https://developer.mozilla.org/en-US/docs/Web/API/WebRTC_API) 音视频处理
 
 ### 后端技术栈 Backend Stack
 
-- Node.js + Express
-- TypeScript
-- MongoDB 数据库
-- Socket.io WebRTC 信令服务
-- Edge TTS 语音合成
-- DeepSeek AI 模型集成
+- [Node.js](https://nodejs.org/) + [Express](https://expressjs.com/)
+- [TypeScript](https://www.typescriptlang.org/)
+- [MongoDB](https://www.mongodb.com/) 数据库
+- [Socket.io](https://socket.io/) WebRTC 信令服务
+- [Edge TTS](https://learn.microsoft.com/en-us/azure/cognitive-services/speech-service/) 语音合成
+- [DeepSeek AI](https://platform.deepseek.com/docs) 模型集成
 
 ## 系统要求 System Requirements
 
 ### 开发环境 Development Environment
 
-- Node.js >= 16.0.0
-- MongoDB >= 6.0
-- NPM or Yarn
-- Modern web browser with WebRTC support
+- [Node.js](https://nodejs.org/) >= 18.0.0(LTE version)
+- [Git](https://git-scm.com/) for version control
+- Modern web browser with [WebRTC](https://webrtc.org/) support
 
 ### 运行平台 Runtime Platform
 
 - 支持 WebRTC 的现代浏览器 Modern browsers with WebRTC support
-  - Google Chrome (推荐 Recommended)
-  - Microsoft Edge
-  - Safari
+  - [Google Chrome](https://www.google.com/chrome/) (推荐 Recommended)
+  - [Microsoft Edge](https://www.microsoft.com/edge)
+  - [Safari](https://www.apple.com/safari/)
 
 ## 部署说明 Deployment Instructions
 
@@ -74,23 +73,21 @@ AI Human Teacher is an innovative Chinese learning platform that leverages artif
 ## Backend
 
 ```bash
-git clone --branch server-side https://github.com/Muhammad-Hamim/AI-Human-Teacher.git
+git clone --branch server-side https://github.com/Muhammad-Hamim/AI-Human-Teacher.git backend
 ```
-
-**After cloning the repository the project folder name will be appear as `AI-Human-Teacher`, it is recommended to rename the folder name otherwise you need to clone frontend and backend code into different folder.**
 
 ### 安装依赖 Install Dependencies
 
 #### 后端 Backend
 
 ```bash
-cd <your project folder>
+cd backend
 npm install
 ```
 
 ### 安装 Edge TTS 依赖 Install Edge TTS Dependency
 
-在 `<your project folder>` 目录下运行以下命令安装 Edge TTS 依赖：
+在 `backend` 目录下运行以下命令安装 Edge TTS 依赖：
 
 ```bash
 install_edgetts.bat
@@ -98,7 +95,7 @@ install_edgetts.bat
 
 ### 配置环境变量 Configure Environment Variables
 
-在 `<your project folder>` 目录下创建 `.env` 文件，并添加以下内容：
+在 `backend` 目录下创建 `.env` 文件，并添加以下内容：
 
 ```env
 NODE_ENV=development
@@ -122,7 +119,7 @@ CLIENT_URL=http://localhost:5173
 #### 启动后端服务 Start Backend
 
 ```bash
-npm run start:dev
+npm run dev
 ```
 
 **After successfully setup backend now setup and run frontend**
@@ -132,17 +129,15 @@ npm run start:dev
 ### 克隆代码库 Clone the Repository
 
 ```bash
-git clone https://github.com/Muhammad-Hamim/AI-Human-Teacher.git
+git clone https://github.com/Muhammad-Hamim/AI-Human-Teacher.git frontend
 ```
-
-**After cloning the repository the project folder name will be appear as `AI-Human-Teacher`, it is recommended to rename the folder name otherwise you need to clone frontend and backend code into different folder.**
 
 ### 安装依赖 Install Dependencies
 
 #### 前端 Frontend
 
 ```bash
-cd <your project folder>
+cd frontend
 npm install
 ```
 
